@@ -64,6 +64,43 @@ async function loadAct(d){
 const refreshAct = debounce(()=>{ if(route()==="log"&&A.season) loadAct(ui.logDate||todayId()); }, 1500);
 function setLogDate(d){ ui.logDate=d; ui.actFor=null; render(); }
 
+async function exportJurnal(){
+  const from=document.getElementById("jxFrom").value, to=document.getElementById("jxTo").value, cid=document.getElementById("jxCid").value;
+  if(!from||!to||from>to){ toast("Periksa rentang tanggal."); return; }
+  try{ await loadXLSX(); }catch(e){ toast(e.message); return; }
+  const num=v=>v===undefined||v===null||v===""||isNaN(v)?"":+v;
+  const list=Object.values(A.rec).filter(r=>r.kind==="journal"&&(!cid||r.competitor_id===cid)).map(r=>({cid:r.competitor_id,...r.data})).filter(j=>(j.date||"")>=from&&(j.date||"")<=to).sort((a,b)=>(a.date||"").localeCompare(b.date||"")||(a.at||0)-(b.at||0));
+  if(!list.length){ toast("Tidak ada catatan jurnal pada rentang ini."); return; }
+  const J=[["Tanggal","Hari","Peserta","Drill / pekerjaan","Waktu (mnt)","Time plan (mnt)","Selisih plan (%)","Deviasi maks (mm)","Cacat","Bahan tambahan","Kondisi","Tidur (jam)","Sudah bisa","Belum bisa","Dicatat oleh"]].concat(list.map(j=>{ const w=num(j.waktu), p=num(j.plan); return [j.date,HARI[dparts(j.date).getDay()],cname(j.cid),j.drill||"",w,p,w!==""&&p?Math.round((w-p)/p*100):"",num(j.dev),num(j.cacat),num(j.bahan),j.kondisi||"",num(j.tidur),j.bisa||"",j.belum||"",j.by||""]; }));
+  const avg=a=>a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length*10)/10:"";
+  const S=[["Peserta","Jumlah catatan","Hari tercatat","Rata-rata deviasi (mm)","Deviasi terbaik (mm)","Rata-rata selisih plan (%)","Total cacat","Total bahan tambahan","Kondisi tidak baik (kali)"]].concat(A.comps.filter(c=>!cid||c.id===cid).map(c=>{ const a=list.filter(j=>j.cid===c.id); const dev=a.map(j=>num(j.dev)).filter(x=>x!==""); const tp=a.filter(j=>num(j.waktu)!==""&&num(j.plan)).map(j=>(j.waktu-j.plan)/j.plan*100);
+    return [c.name,a.length,new Set(a.map(j=>j.date)).size,avg(dev),dev.length?Math.min(...dev):"",avg(tp),a.reduce((x,j)=>x+(+j.cacat||0),0),a.reduce((x,j)=>x+(+j.bahan||0),0),a.filter(j=>j.kondisi&&j.kondisi!=="Baik").length]; }));
+  const wb=XLSX.utils.book_new();
+  const w1=XLSX.utils.aoa_to_sheet(J); w1["!cols"]=[{wch:11},{wch:8},{wch:16},{wch:30},{wch:9},{wch:10},{wch:10},{wch:11},{wch:7},{wch:9},{wch:12},{wch:8},{wch:45},{wch:45},{wch:16}]; XLSX.utils.book_append_sheet(wb,w1,"Jurnal");
+  const w2=XLSX.utils.aoa_to_sheet(S); w2["!cols"]=[{wch:18},{wch:10},{wch:10},{wch:14},{wch:14},{wch:16},{wch:9},{wch:12},{wch:14}]; XLSX.utils.book_append_sheet(wb,w2,"Ringkasan");
+  XLSX.writeFile(wb, "Jurnal-"+(cid?cname(cid).replace(/[^\w-]+/g,"_")+"-":"")+from+"_sd_"+to+".xlsx"); toast("Excel jurnal diunduh.");
+}
+async function exportLog(){
+  const from=document.getElementById("logFrom").value, to=document.getElementById("logTo").value;
+  if(!from||!to||from>to){ toast("Periksa rentang tanggal."); return; }
+  try{ await loadXLSX(); }catch(e){ toast(e.message); return; }
+  let act=[]; try{ act=await Store.listActivity(A.season.id, new Date(dparts(from)).toISOString(), new Date(dparts(addDays(to,1))).toISOString(), 5000); }catch(e){}
+  const SES={ya:"Sesuai jadwal",sebagian:"Sebagian sesuai",ganti:"Diganti materi lain"};
+  const jd=x=>sched().filter(s=>s.date&&x>=s.date&&x<=(s.end||s.date)).map(s=>s.label+": "+s.title.replace(/\n/g," / ")).join(" | ");
+  const logs=Object.values(A.rec).filter(r=>r.kind==="log"&&r.data?.date>=from&&r.data?.date<=to).map(r=>r.data).sort((a,b)=>a.date.localeCompare(b.date)||(a.start||"").localeCompare(b.start||""));
+  const L=[["Tanggal","Hari","Asisten","Jam mulai","Jam selesai","Kesesuaian","Hadir","Tidak hadir","Kegiatan","Capaian siswa","Kendala & tindak lanjut","Alat / bahan","Jadwal hari itu"]].concat(logs.map(l=>[l.date,HARI[dparts(l.date).getDay()],pname(l.by)||l.name,l.start||"",l.end||"",SES[l.sesuai]||"",A.comps.filter(c=>(l.hadir||[]).includes(c.id)).map(c=>c.name).join(", "),A.comps.filter(c=>!(l.hadir||[]).includes(c.id)).map(c=>c.name).join(", "),l.kegiatan||"",l.capaian||"",l.kendala||"",l.bahan||"",jd(l.date)]));
+  const at=a=>{ const t=new Date(a.at); return [t.getFullYear()+"-"+String(t.getMonth()+1).padStart(2,"0")+"-"+String(t.getDate()).padStart(2,"0"), hhmm(a.at)]; };
+  const T=[["Tanggal","Jam","Oleh","Kegiatan di aplikasi"]].concat([...act].reverse().map(a=>[...at(a),pname(a.user_id),actText(a)]));
+  const staff=(A.profiles||[]).filter(p=>p.role==="juri"||p.role==="admin");
+  const days=[...new Set(sched().filter(s=>s.kind==="day"&&s.date>=from&&s.date<=to).map(s=>s.date))].sort();
+  const K=[["Tanggal latihan"].concat(staff.map(p=>p.name||p.email))].concat(days.map(x=>[x].concat(staff.map(p=>{ const l=R("log",x+"~"+p.id); return l?"✓ "+(l.start||"")+(l.end?"–"+l.end:""):"–"; }))));
+  const wb=XLSX.utils.book_new();
+  const w1=XLSX.utils.aoa_to_sheet(L); w1["!cols"]=[{wch:11},{wch:8},{wch:18},{wch:9},{wch:9},{wch:18},{wch:20},{wch:20},{wch:60},{wch:45},{wch:45},{wch:30},{wch:60}]; XLSX.utils.book_append_sheet(wb,w1,"Log asisten");
+  const w2=XLSX.utils.aoa_to_sheet(T); w2["!cols"]=[{wch:11},{wch:6},{wch:18},{wch:70}]; XLSX.utils.book_append_sheet(wb,w2,"Aktivitas");
+  const w3=XLSX.utils.aoa_to_sheet(K); w3["!cols"]=[{wch:14}].concat(staff.map(()=>({wch:18}))); XLSX.utils.book_append_sheet(wb,w3,"Rekap");
+  XLSX.writeFile(wb, "Log-harian-"+from+"_sd_"+to+".xlsx"); toast("Excel log diunduh.");
+}
+
 /* ---------------- Penilaian ---------------- */
 function markDoc(ev,cid){ return clone(R("mark",ev,cid)||{ marks:{} }); }
 async function saveMark(ev, cid, key, mut){
@@ -103,6 +140,10 @@ document.addEventListener("click", async e=>{
   if(t.dataset.ev){ ui.ev=t.dataset.ev; rememberUI(); }
   if(t.dataset.logday!==undefined){ const n=+t.dataset.logday; setLogDate(n===0?todayId():addDays(ui.logDate||todayId(),n)); return; }
   if(t.dataset.logto){ e.preventDefault(); setLogDate(t.dataset.logto); window.scrollTo(0,0); return; }
+  if(t.id==="jXls"){ await exportJurnal(); return; }
+  if(t.id==="jPrint"){ window.print(); return; }
+  if(t.id==="logXls"){ await exportLog(); return; }
+  if(t.id==="logPrint"){ window.print(); return; }
   if(t.id==="actReload"){ ui.actFor=null; render(); return; }
   if(t.dataset.dellog){ if(confirm("Hapus log harian ini?")){ try{ await Store.deleteRecord(t.dataset.dellog); delete A.rec[t.dataset.dellog]; ui.actFor=null; render(); toast("Log dihapus."); }catch(err){ toast(errMsg(err)); } } return; }
   if(t.id==="qShow"){ ui.quizShow=!ui.quizShow; render(); return; }
@@ -155,6 +196,8 @@ document.addEventListener("click", async e=>{
 document.addEventListener("change", async e=>{
   const t=e.target;
   if(t.id==="seasonSel"){ await openSeason(t.value); return; }
+  if(t.id==="jxFrom"||t.id==="jxTo"||t.id==="jxCid"){ ui[t.id]=t.value; return; }
+  if(t.id==="logFrom"||t.id==="logTo"){ ui[t.id]=t.value; return; }
   if(t.id==="logDate"){ if(t.value) setLogDate(t.value); return; }
   if(t.dataset.uname){ const id=t.dataset.uname, n=t.value.trim(); try{ await Store.setName(id, n); const p=A.profiles.find(x=>x.id===id); if(p) p.name=n; if(id===A.user.id) A.profile.name=n; toast("Nama disimpan."); render(); }catch(err){ toast(errMsg(err)); } return; }
   if(t.dataset.asp){ if(t.dataset.done){ delete t.dataset.done; return; } if(t.dataset.kind==="J"){ const id=t.dataset.asp; setTimeout(()=>{ const a=document.activeElement; if(a&&a.dataset&&a.dataset.asp===id&&a.dataset.kind==="J") return; commitAsp(t); },0); } else commitAsp(t); return; }

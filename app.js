@@ -3,7 +3,7 @@
    Data: Supabase (bila config.js diisi) atau mode demo (localStorage)
    ===================================================================== */
 "use strict";
-const VERSION = "v2027.1";
+const VERSION = "v2027.4";
 const CFG = window.TIS_CONFIG || {};
 const DEMO = !CFG.SUPABASE_URL || !CFG.SUPABASE_ANON_KEY;
 const COLORS = ["#1D5FC4","#D35A22","#2F9A3F","#8E44AD","#B07A00","#0E8C8C","#C2372B","#5A6773"];
@@ -20,7 +20,7 @@ const LocalStore = {
       records:[], activity:[], profiles:[{id:"demo",name:"Pembina (demo)",email:"demo@lokal",role:"admin"}] }; this.save(); } if(!this.db.activity) this.db.activity=[]; },
   act(r, action){ const now=new Date().toISOString(); const last=action!=="hapus"&&this.db.activity.find(a=>a.rec_id===r.id&&a.user_id==="demo"&&a.action!=="hapus"&&Date.now()-Date.parse(a.at)<900000);
     if(last){ last.at=now; last.n++; } else this.db.activity.unshift({ id:Date.now()+Math.random(), season_id:r.season_id, rec_id:r.id, kind:r.kind, ref:r.ref, competitor_id:r.competitor_id, action, n:1, user_id:"demo", first_at:now, at:now }); },
-  async listActivity(sid, from, to){ return clone(this.db.activity.filter(a=>a.season_id===sid&&a.at>=from&&a.at<to)); },
+  async listActivity(sid, from, to, lim){ return clone(this.db.activity.filter(a=>a.season_id===sid&&a.at>=from&&a.at<to)); },
   async setName(id, n){ const p=this.db.profiles.find(x=>x.id===id); if(p){ p.name=n; this.save(); } },
   save(){ try{ localStorage.setItem(this.key, JSON.stringify(this.db)); }catch(e){ toast("Penyimpanan browser penuh."); } },
   async init(){ this.load(); return { user:{id:"demo",email:"demo@lokal"}, profile:this.db.profiles[0] }; },
@@ -77,7 +77,7 @@ const SupaStore = {
   async listProfiles(){ const { data, error } = await this.sb.from("profiles").select("*").order("created_at"); if(error) throw error; return data; },
   async setRole(id, role){ const { error } = await this.sb.from("profiles").update({ role }).eq("id", id); if(error) throw error; },
   async setName(id, name){ const { error } = await this.sb.from("profiles").update({ name }).eq("id", id); if(error) throw error; },
-  async listActivity(sid, from, to){ const { data, error } = await this.sb.from("activity").select("*").eq("season_id", sid).gte("at", from).lt("at", to).order("at", { ascending:false }).limit(500); if(error) throw error; return data; },
+  async listActivity(sid, from, to, lim){ const { data, error } = await this.sb.from("activity").select("*").eq("season_id", sid).gte("at", from).lt("at", to).order("at", { ascending:false }).limit(lim||500); if(error) throw error; return data; },
   subscribe(seasonId, onRecord, onOther){
     if(this.ch) this.sb.removeChannel(this.ch);
     this.ch = this.sb.channel("tis-"+seasonId)
@@ -92,7 +92,7 @@ const Store = DEMO ? LocalStore : SupaStore;
 
 /* ---------------- State aplikasi ---------------- */
 const A = { user:null, profile:null, seasons:[], season:null, cfg:null, comps:[], rec:{}, loading:true, online:true, profiles:[] };
-const ui = { ev:null, cid:null, rcid:null, gcid:null, detail:null, lostOnly:false, pev:null, pcid:null, pkind:"summary", jtab:null, logDate:null, actFor:null, set:"musim", openDesc:null, quiz:null, quizShow:false, edit:null, editKey:null };
+const ui = { ev:null, cid:null, rcid:null, gcid:null, detail:null, lostOnly:false, pev:null, pcid:null, pkind:"summary", jtab:null, logDate:null, logFrom:null, jxFrom:null, jxTo:null, jxCid:"", logTo:null, actFor:null, set:"musim", openDesc:null, quiz:null, quizShow:false, edit:null, editKey:null };
 const saveState = {}, jBad = {};
 try{ Object.assign(ui, JSON.parse(localStorage.getItem("tis-ui")||"{}")); }catch(e){}
 function rememberUI(){ try{ localStorage.setItem("tis-ui", JSON.stringify({ ev:ui.ev, cid:ui.cid, rcid:ui.rcid, gcid:ui.gcid, pev:ui.pev, pcid:ui.pcid, pkind:ui.pkind, jtab:ui.jtab, set:ui.set })); }catch(e){} }

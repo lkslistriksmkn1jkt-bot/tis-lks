@@ -221,11 +221,16 @@ V.jurnal = () => {
   const list=Object.values(A.rec).filter(r=>r.kind==="journal").map(r=>({id:r.id,cid:r.competitor_id,...r.data})).sort((a,b)=>(b.date||"").localeCompare(a.date||"")||(b.at||0)-(a.at||0));
   const kond=["Baik","Lelah","Ada keluhan"];
   const items=list.length?list.map(j=>{ const dev=j.dev!==undefined&&j.dev!==""?+j.dev:null, tp=j.waktu&&j.plan?Math.round((j.waktu-j.plan)/j.plan*100):null; const c=compById(j.cid);
-    return `<div class="entry" style="border-left-color:${c?compColor(c):"var(--line)"}"><div class="spread"><b>${dlabel(j.date||todayId(),true)} · ${esc(cname(j.cid))}${j.drill?" · "+esc(j.drill):""}</b>${canWrite()?`<button class="btn sm" data-del="${esc(j.id)}">Hapus</button>`:""}</div>
+    return `<div class="entry" style="border-left-color:${c?compColor(c):"var(--line)"}"><div class="spread"><b>${dlabel(j.date||todayId(),true)} · ${esc(cname(j.cid))}${j.drill?" · "+esc(j.drill):""}</b>${canWrite()?`<button class="btn sm no-print" data-del="${esc(j.id)}">Hapus</button>`:""}</div>
     <div class="row">${j.waktu?`<span class="chip">${esc(j.waktu)} mnt${tp!==null?` · plan ${tp>0?"+":""}${tp}%`:""}</span>`:""}${dev!==null?`<span class="chip ${dev<=2?"good":"bad"}">deviasi ${fmt(dev,1)} mm</span>`:""}${j.cacat?`<span class="chip warn">${esc(j.cacat)} cacat</span>`:""}${j.bahan?`<span class="chip bad">${esc(j.bahan)} bahan tambahan</span>`:""}${j.kondisi?`<span class="chip ${j.kondisi==="Baik"?"good":"warn"}">${esc(j.kondisi)}${j.tidur?" · tidur "+esc(j.tidur)+" j":""}</span>`:""}</div>
     ${j.bisa?`<p><span class="label">Sudah bisa</span><br>${esc(j.bisa)}</p>`:""}${j.belum?`<p><span class="label">Belum bisa</span><br>${esc(j.belum)}</p>`:""}</div>`; }).join("") : '<div class="empty">Belum ada catatan. Isi setiap sore: waktu, deviasi, cacat, dan apa yang belum bisa.</div>';
   return `<div><h2>Jurnal latihan</h2><p class="lead">Data harian yang layak dicatat menurut silabus.</p></div>
-  ${canWrite()?`<form class="panel" id="jForm"><div class="grid g3"><label class="f">Tanggal<input type="date" id="jDate" value="${todayId()}" required></label><label class="f">Peserta<select id="jCid">${A.comps.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join("")}</select></label><label class="f">Drill / pekerjaan<input type="text" id="jDrill"></label></div>
+  <div class="panel no-print"><div class="label">Unduh / cetak jurnal</div>
+    <div class="row"><label class="f" style="flex:1;min-width:140px">Dari<input type="date" id="jxFrom" value="${ui.jxFrom||(list.length?list[list.length-1].date:todayId())}"></label><label class="f" style="flex:1;min-width:140px">Sampai<input type="date" id="jxTo" value="${ui.jxTo||todayId()}"></label>
+    <label class="f" style="flex:1;min-width:140px">Peserta<select id="jxCid"><option value="">Semua peserta</option>${A.comps.map(c=>`<option value="${c.id}" ${ui.jxCid===c.id?"selected":""}>${esc(c.name)}</option>`).join("")}</select></label></div>
+    <div class="row"><button class="btn sm primary" id="jXls">Unduh Excel</button><button class="btn sm" id="jPrint">Cetak / PDF</button></div>
+    <p class="note">Excel berisi sheet Jurnal (semua catatan) dan Ringkasan per siswa. Cetak memakai daftar catatan di halaman ini.</p></div>
+  ${canWrite()?`<form class="panel no-print" id="jForm"><div class="grid g3"><label class="f">Tanggal<input type="date" id="jDate" value="${todayId()}" required></label><label class="f">Peserta<select id="jCid">${A.comps.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join("")}</select></label><label class="f">Drill / pekerjaan<input type="text" id="jDrill"></label></div>
   <div class="grid g3"><label class="f">Waktu (menit)<input type="number" inputmode="numeric" id="jWaktu" min="0"></label><label class="f">Time plan (menit)<input type="number" inputmode="numeric" id="jPlan" min="0"></label><label class="f">Deviasi maks (mm)<input type="number" inputmode="decimal" id="jDev" min="0" step="0.5"></label>
   <label class="f">Jumlah cacat<input type="number" inputmode="numeric" id="jCacat" min="0"></label><label class="f">Bahan tambahan<input type="number" inputmode="numeric" id="jBahan" min="0"></label><label class="f">Kondisi siswa<select id="jKondisi"><option value="">–</option>${kond.map(k=>`<option>${k}</option>`).join("")}</select></label><label class="f">Tidur semalam (jam)<input type="number" inputmode="decimal" id="jTidur" min="0" max="14" step="0.5"></label></div>
   <div class="grid g2"><label class="f">Sudah bisa<textarea id="jBisa"></textarea></label><label class="f">Belum bisa<textarea id="jBelum"></textarea></label></div>
@@ -255,7 +260,7 @@ V.log = () => {
   const mine=canWrite()?(R("log",d+"~"+A.user.id)||{}):null;
   const logs=logsOn(d);
   const jadwal=it.length?it.map(s=>`<div><div class="label">${esc(s.tab)} · ${esc(s.group)} · ${esc(s.label)}</div><p>${esc(s.title).replace(/\n/g,"<br>")}</p><p class="muted" style="font-size:13px">Target: ${esc(s.target)}</p></div>`).join(""):'<p class="muted">Tidak ada jadwal latihan pada tanggal ini.</p>';
-  const form=mine?`<form class="panel" id="logForm"><div class="spread"><div class="label">Log saya · ${esc(A.profile?.name||A.user?.email||"")}</div>${mine.at?`<span class="chip good">tersimpan ${hhmm(new Date(mine.at).toISOString())}</span>`:'<span class="chip warn">belum diisi</span>'}</div>
+  const form=mine?`<form class="panel no-print" id="logForm"><div class="spread"><div class="label">Log saya · ${esc(A.profile?.name||A.user?.email||"")}</div>${mine.at?`<span class="chip good">tersimpan ${hhmm(new Date(mine.at).toISOString())}</span>`:'<span class="chip warn">belum diisi</span>'}</div>
     <div class="grid g3"><label class="f">Jam mulai<input type="time" id="lgStart" value="${esc(mine.start||"")}"></label><label class="f">Jam selesai<input type="time" id="lgEnd" value="${esc(mine.end||"")}"></label>
     <label class="f">Kesesuaian dengan jadwal<select id="lgSesuai">${Object.entries(SESUAI).map(([k,v])=>`<option value="${k}" ${(mine.sesuai||"ya")===k?"selected":""}>${v[0]}</option>`).join("")}</select></label></div>
     <div class="f"><span>Peserta hadir</span><div class="row">${A.comps.map(c=>`<label class="row" style="gap:6px"><input type="checkbox" data-hadir="${c.id}" ${(mine.hadir||A.comps.map(x=>x.id)).includes(c.id)?"checked":""}>${esc(c.name)}</label>`).join("")}</div></div>
@@ -265,7 +270,7 @@ V.log = () => {
     <label class="f">Alat / bahan (dipakai, habis, rusak)<input type="text" id="lgBahan" value="${esc(mine.bahan||"")}"></label>
     <div><button class="btn primary" type="submit">Simpan log</button></div></form>`:"";
   const cards=logs.length?logs.map(l=>{ const s=SESUAI[l.sesuai]||SESUAI.ya;
-    return `<div class="entry" style="border-left-color:var(--accent)"><div class="spread"><b>${esc(pname(l.by)||l.name)}${l.start?` · ${esc(l.start)}–${esc(l.end||"?")}`:""}</b>${isAdmin()||l.by===A.user?.id?`<button class="btn sm" data-dellog="${esc(l.id)}">Hapus</button>`:""}</div>
+    return `<div class="entry" style="border-left-color:var(--accent)"><div class="spread"><b>${esc(pname(l.by)||l.name)}${l.start?` · ${esc(l.start)}–${esc(l.end||"?")}`:""}</b>${isAdmin()||l.by===A.user?.id?`<button class="btn sm no-print" data-dellog="${esc(l.id)}">Hapus</button>`:""}</div>
     <div class="row"><span class="chip ${s[1]}">${s[0]}</span>${(l.hadir||[]).length<A.comps.length?A.comps.map(c=>`<span class="chip ${(l.hadir||[]).includes(c.id)?"good":"bad"}">${esc(c.name)} ${(l.hadir||[]).includes(c.id)?"hadir":"tidak hadir"}</span>`).join(""):'<span class="chip good">semua peserta hadir</span>'}</div>
     <p><span class="label">Kegiatan</span><br>${esc(l.kegiatan).replace(/\n/g,"<br>")}</p>${l.capaian?`<p><span class="label">Capaian siswa</span><br>${esc(l.capaian).replace(/\n/g,"<br>")}</p>`:""}${l.kendala?`<p><span class="label">Kendala & tindak lanjut</span><br>${esc(l.kendala).replace(/\n/g,"<br>")}</p>`:""}${l.bahan?`<p><span class="label">Alat / bahan</span><br>${esc(l.bahan)}</p>`:""}</div>`; }).join(""):'<div class="empty">Belum ada log untuk tanggal ini.</div>';
   let act;
@@ -275,12 +280,16 @@ V.log = () => {
   const staff=(A.profiles||[]).filter(p=>p.role==="juri"||p.role==="admin");
   const days=[...new Set(sched().filter(s=>s.kind==="day"&&s.date<=todayId()).map(s=>s.date))].sort().reverse().slice(0,10);
   const rekap=staff.length&&days.length?`<div class="panel"><div class="label">Rekap pengisian log · 10 hari latihan terakhir</div><div class="tbl-wrap"><table><thead><tr><th>Tanggal</th>${staff.map(p=>`<th>${esc(p.name||p.email)}</th>`).join("")}</tr></thead><tbody>${days.map(x=>`<tr><td><a href="#log" data-logto="${x}">${dlabel(x)}</a></td>${staff.map(p=>{ const l=R("log",x+"~"+p.id); return `<td>${l?`<span class="chip good">✓ ${esc(l.start||"")}${l.end?"–"+esc(l.end):""}</span>`:'<span class="chip">–</span>'}</td>`; }).join("")}</tr>`).join("")}</tbody></table></div></div>`:"";
-  return `<div><h2>Log harian</h2><p class="lead">Laporan kegiatan asisten setiap hari latihan, ditambah catatan otomatis semua yang diisi di aplikasi.</p></div>
+  return `<div><h2>Log harian</h2><p class="print-only" style="display:none">${esc(A.season.name)} · ${dlabel(d,true)} ${d.slice(0,4)}</p><p class="lead no-print">Laporan kegiatan asisten setiap hari latihan, ditambah catatan otomatis semua yang diisi di aplikasi.</p></div>
   <div class="row no-print"><button class="btn sm" data-logday="-1">‹ Sebelumnya</button><input type="date" id="logDate" value="${d}" style="width:auto"><button class="btn sm" data-logday="1">Berikutnya ›</button>${d!==todayId()?'<button class="btn sm" data-logday="0">Hari ini</button>':""}</div>
+  <div class="panel no-print"><div class="label">Unduh / cetak log</div>
+    <div class="row"><label class="f" style="flex:1;min-width:140px">Dari<input type="date" id="logFrom" value="${ui.logFrom||addDays(d,-6)}"></label><label class="f" style="flex:1;min-width:140px">Sampai<input type="date" id="logTo" value="${ui.logTo||d}"></label></div>
+    <div class="row"><button class="btn sm primary" id="logXls">Unduh Excel (rentang tanggal)</button><button class="btn sm" id="logPrint">Cetak / PDF hari ini</button></div>
+    <p class="note">Excel berisi 3 sheet: Log asisten, Aktivitas otomatis, dan Rekap pengisian. Cetak memakai tampilan tanggal yang sedang dibuka; pilih "Simpan sebagai PDF" di jendela cetak.</p></div>
   <div class="panel"><div class="label">${dlabel(d,true)} ${d.slice(0,4)} · jadwal</div>${jadwal}</div>
   ${form}
   <div class="panel"><div class="label">Log asisten</div>${cards}</div>
-  <div class="panel"><div class="spread"><div class="label">Aktivitas di aplikasi (otomatis)</div><button class="btn sm" id="actReload">Muat ulang</button></div>${act}</div>
+  <div class="panel"><div class="spread"><div class="label">Aktivitas di aplikasi (otomatis)</div><button class="btn sm no-print" id="actReload">Muat ulang</button></div>${act}</div>
   ${rekap}`;
 };
 
