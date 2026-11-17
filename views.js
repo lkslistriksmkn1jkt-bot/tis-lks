@@ -1,0 +1,254 @@
+/* =====================================================================
+   Tampilan (views)
+   ===================================================================== */
+"use strict";
+const V = {};
+const typBadge = s => `<span class="typ ${s.t==="J"?"J":"M"}">${s.t==="J"?"J":"M"}</span>`;
+const badge = (c, sm) => `<span class="badge ${sm?"badge-sm":""}" style="background:${compColor(c)}">${esc(initials(c.name))}</span>`;
+const compSeg = (attr, cur) => `<div class="seg" style="flex-wrap:wrap">${A.comps.map(c=>`<button type="button" ${attr}="${c.id}" aria-pressed="${c.id===cur}">${esc(c.name)}</button>`).join("")}</div>`;
+const noComps = () => `<div class="empty">Belum ada peserta di musim ini. ${isAdmin()?'Tambahkan di menu <a class="link" href="#peserta">Peserta</a>.':"Minta admin menambahkan peserta."}</div>`;
+
+/* ---------- Login ---------- */
+function loginView(err){
+  return `<div class="login-wrap"><form class="login" id="loginForm">
+    <div class="eyebrow" style="color:var(--muted)">LKS SMK · <b style="color:var(--warn)">Electrical Installations</b></div>
+    <h1>Training Information System</h1>
+    <p class="muted" style="font-size:14px">Masuk dengan akun yang dibuat admin.</p>
+    <label class="f">E-mail<input type="email" id="lgEmail" autocomplete="username" required></label>
+    <label class="f">Kata sandi<input type="password" id="lgPass" autocomplete="current-password" required></label>
+    ${err?`<p class="err">${esc(err)}</p>`:""}
+    <button class="btn primary" type="submit" id="lgBtn">Masuk</button>
+    <p class="note">Lupa kata sandi? Minta admin mengatur ulang dari dashboard Supabase.</p>
+  </form></div>`;
+}
+
+/* ---------- Kerangka ---------- */
+const NAV = [["beranda","Beranda"],["jadwal","Jadwal"],["scheme","Marking Scheme"],["penilaian","Assessment",()=>canWrite()],["hasil","Results"],["gate","Gate Test"],["laporan","Reports"],["jurnal","Jurnal"],["peserta","Peserta"],["pengaturan","Pengaturan",()=>isAdmin()],["profil","Profil"]];
+function shell(inner, r){
+  const roleName = { admin:"Admin", juri:"Juri", viewer:"Pengamat" }[role()];
+  const seasonOpts = A.seasons.map(s=>`<option value="${s.id}" ${s.id===A.season?.id?"selected":""}>${esc(s.name)}${s.active?" (aktif)":""}</option>`).join("");
+  return `${DEMO?'<div class="demo">MODE DEMO · data hanya tersimpan di browser ini. Isi config.js untuk memakai database bersama.</div>':""}
+  <header class="band"><div class="wrap">
+    <div class="hdr-top"><div class="eyebrow"><span>LKS SMK · Bidang Lomba</span><b>Electrical Installations</b>${CFG.SCHOOL?`<span>${esc(CFG.SCHOOL)}</span>`:""}</div>
+      <div class="userbox"><b>${esc(A.profile?.name||A.user?.email||"")}</b><span>(${roleName})</span>${DEMO?"":'<a href="#" id="signOut">Keluar</a>'}</div></div>
+    <h1>Training Information System</h1>
+    <div class="row" style="gap:8px"><label class="sub" for="seasonSel">Musim</label><select id="seasonSel" style="width:auto;max-width:100%;background:transparent;color:var(--band-ink);border-color:var(--band-muted)">${seasonOpts}</select></div>
+    <nav class="tabs" id="tabs" aria-label="Menu">${NAV.filter(n=>!n[2]||n[2]()).map(n=>`<a href="#${n[0]}" ${n[0]===r?'aria-current="page"':""}>${n[1]}</a>`).join("")}</nav>
+  </div></header>
+  <main><div class="wrap" id="view">${inner}</div></main>
+  <footer class="foot"><div class="wrap"><span class="src ${DEMO?"local":A.online?"live":""}">${DEMO?"MODE DEMO · DATA LOKAL":A.online?"SUPABASE LIVE":"OFFLINE · MENUNGGU KONEKSI"}</span><span>TIS LKS Instalasi Listrik · <span class="num">${VERSION}</span></span></div></footer>`;
+}
+
+/* ---------- Beranda ---------- */
+function newQuiz(){ const n=(A.cfg.angka||[]).length; const idx=[...Array(n).keys()]; ui.quiz=[]; while(ui.quiz.length<Math.min(3,n)){ ui.quiz.push(idx.splice(Math.floor(Math.random()*idx.length),1)[0]); } ui.quizShow=false; }
+V.beranda = () => {
+  const t=todayId(); const cur=currentItems(); const day=cur.find(s=>s.kind==="day"); const we=cur.find(s=>s.kind==="weekend"); const wk=cur.find(s=>s.kind==="week");
+  const isWE=[0,6].includes(new Date().getDay());
+  let today;
+  if(we||(isWE&&wk)){ const it=we||wk; const tasks=we?we.title.split("\n"):[(wk.note||"").replace(/^Tugas akhir pekan:\s*/,"")];
+    today=`<div class="spread"><div><div class="label">${esc(it.tab)} · tugas mandiri akhir pekan</div><h3>${esc(it.group)}</h3></div><span class="chip acc">±2–3 jam</span></div><ol class="tasks">${tasks.filter(Boolean).map(x=>`<li>${esc(x)}</li>`).join("")}</ol>${we?`<p class="note">${esc(we.target)}</p>`:""}`; }
+  else if(day){ const i=sched().filter(s=>s.tab===day.tab&&s.kind==="day").indexOf(day)+1, n=sched().filter(s=>s.tab===day.tab&&s.kind==="day").length;
+    today=`<div class="spread"><div><div class="label">${esc(day.tab)} · hari ke-${i} dari ${n}</div><h3>${dlabel(day.date,true)} · ${esc(day.group)}</h3></div><span class="chip ${day.to?"warn":"acc"}">${esc(day.label)}</span></div>
+    <div class="grid g2"><div><div class="label">Materi & drill</div><p>${esc(day.title)}</p></div><div><div class="label">Target</div><p>${esc(day.target)}</p></div></div><div class="row"><a class="btn sm" href="#jadwal">Buka jadwal</a>${A.cfg.jobsheetUrl?`<a class="btn sm" href="${esc(A.cfg.jobsheetUrl)}" target="_blank" rel="noopener">Buka jobsheet</a>`:""}</div>`; }
+  else if(wk){ today=`<div class="spread"><div><div class="label">${esc(wk.tab)} · ${esc(wk.label)} · ${wk.hours||"?"} jam</div><h3>${rangeLabel(wk.date,wk.end)} · ${esc(wk.group)}</h3></div>${wk.to?`<span class="chip warn">${esc(evById(wk.to)?.name||wk.to)}</span>`:""}</div>
+    <div class="grid g2"><div><div class="label">Fokus latihan</div><p>${esc(wk.title)}</p></div><div><div class="label">Yang dinilai</div><p>${esc(wk.target)}</p></div></div>`; }
+  else { const nx=sched().filter(s=>s.date>t).sort((a,b)=>a.date.localeCompare(b.date))[0];
+    today = nx ? `<div class="label">Tidak ada latihan hari ini</div><h3>Berikutnya: ${dlabel(nx.date,true)} · ${esc(nx.group)}</h3><p class="muted">${esc(nx.title.split("\n")[0])}</p>` : `<div class="label">Jadwal musim ini sudah selesai</div><h3>${esc(A.season.name)}</h3>`; }
+  const days=sched().filter(s=>s.kind==="day"||s.kind==="week");
+  const comps = A.comps.length ? A.comps.map(c=>{ const done=days.filter(s=>R("done",s.id,c.id)?.done).length; const gp=gatesPassed(c.id);
+    const last=[...events()].reverse().map(e=>({e,c:calc(e.id,c.id)})).find(x=>x.c);
+    return `<div class="panel"><div class="comp">${badge(c)}<div><h3>${esc(c.name)}</h3><p class="muted" style="font-size:13px">Kelas ${esc(c.kelas)}${c.peran?" · "+esc(c.peran):""}${c.sekolah?" · "+esc(c.sekolah):""}</p></div></div>
+    <div class="grid" style="grid-template-columns:1fr 1fr;gap:10px"><div><div class="spread"><span class="label">Jadwal tuntas</span><span class="num">${done}/${days.length}</span></div><div class="bar" style="margin-top:6px"><i style="width:${days.length?done/days.length*100:0}%;background:${compColor(c)}"></i></div></div>
+    <div><div class="spread"><span class="label">Gate lulus</span><span class="num">${gp}/${gates().length}</span></div><div class="bar" style="margin-top:6px"><i style="width:${gates().length?gp/gates().length*100:0}%;background:${compColor(c)}"></i></div></div></div>
+    <div class="spread"><div><div class="label">Skor TO terakhir</div><div class="big num">${last?fmt(last.c.score,1):"—"}</div></div><div style="text-align:right"><div class="label">${last?esc(last.e.name):"Belum ada TO"}</div><p class="note">${last?esc(last.e.focus||""):""}</p></div></div></div>`; }).join("") : noComps();
+  const nx=events().filter(e=>e.date>=t).sort((a,b)=>a.date.localeCompare(b.date))[0];
+  if(!ui.quiz||ui.quiz.some(i=>i>=(A.cfg.angka||[]).length)) newQuiz();
+  const qz=ui.quiz.map((i,k)=>`<div class="qrow"><span class="num muted">${k+1}</span><div><p>${esc(A.cfg.angka[i][0])}</p>${ui.quizShow?`<p class="ans">${esc(A.cfg.angka[i][1])}</p>`:""}</div></div>`).join("");
+  return `<section class="panel">${today}</section>
+  <section class="grid g2">${comps}</section>
+  <section class="grid g2">
+    <div class="panel"><div class="spread"><div class="label">Angka teknis · 1 menit</div><div class="row"><button class="btn sm" id="qShow">${ui.quizShow?"Sembunyikan":"Lihat jawaban"}</button><button class="btn sm" id="qNew">Acak lagi</button></div></div>${qz||'<p class="muted">Belum ada daftar angka teknis.</p>'}</div>
+    <div class="panel"><div class="label">TO berikutnya</div>${nx?`<h3>${esc(nx.name)} · ${esc(nx.label||dlabel(nx.date,true))}</h3><p class="muted">${esc(nx.focus||"")} · ${fmt(nx.limit/60,0)} jam · kriteria ${(nx.scope||[]).join(", ")}</p>${canWrite()?`<div><a class="btn sm primary" href="#penilaian" data-ev="${nx.id}">Buka lembar penilaian</a></div>`:""}`:'<p class="muted">Tidak ada TO terjadwal berikutnya.</p>'}</div>
+  </section>
+  <section style="display:flex;flex-direction:column;gap:10px"><h2>Jadwal TO</h2><div class="tbl-wrap"><table><thead><tr><th>TO</th><th>Tanggal</th><th>Durasi</th><th>Kriteria</th>${A.comps.map(c=>`<th class="n">${esc(c.name)}</th>`).join("")}</tr></thead><tbody>${events().map(e=>`<tr class="${nx&&nx.id===e.id?"today":""}"><td><b>${esc(e.name)}</b>${e.fase?`<div class="note">Fase ${esc(e.fase)}</div>`:""}</td><td style="white-space:nowrap">${esc(e.label||dlabel(e.date))}</td><td class="num">${fmt(e.limit/60,0)} jam</td><td>${(e.scope||[]).length===scheme().length?"Semua":(e.scope||[]).join(" · ")}</td>${A.comps.map(c=>{const r=calc(e.id,c.id);return `<td class="n">${r?`<b>${fmt(r.score,1)}</b>`:"—"}</td>`;}).join("")}</tr>`).join("")}</tbody></table></div></section>`;
+};
+
+/* ---------- Jadwal ---------- */
+V.jadwal = () => {
+  const tabs=schedTabs(); if(!tabs.length) return `<h2>Jadwal</h2><div class="empty">Belum ada jadwal. ${isAdmin()?'Isi di Pengaturan › Jadwal.':""}</div>`;
+  if(!ui.jtab||!tabs.includes(ui.jtab)){ const c=currentItems()[0]; ui.jtab = c ? c.tab : tabs[0]; }
+  const t=todayId(); const items=sched().filter(s=>(s.tab||"Jadwal")===ui.jtab); let lastG=null;
+  const rows=items.map(s=>{ let h=""; if(s.group!==lastG){ lastG=s.group; h=`<tr class="grp"><td colspan="5">${esc(s.group)}${s.kind==="week"&&s.note?`<div class="wetask">${esc(s.note)}</div>`:""}</td></tr>`; if(s.kind==="week"&&s.note){ /* tampilkan note sekali per grup */ } }
+    const now = s.date && t>=s.date && t<=(s.end||s.date);
+    const ticks=A.comps.map(c=>{ const d=R("done",s.id,c.id)||{}; return `<label class="tick"><input type="checkbox" data-done="${s.id}" data-cid="${c.id}" ${d.done?"checked":""} ${canWrite()?"":"disabled"}>${esc(c.name.split(" ")[0])} ${esc(c.kelas||"")}</label>`; }).join("");
+    const notes=A.comps.map(c=>{ const d=R("done",s.id,c.id)||{}; return d.note?`<div class="note">${esc(c.name.split(" ")[0])}: ${esc(d.note)}</div>`:""; }).join("");
+    const title = s.kind==="weekend" ? `<ol class="tasks">${s.title.split("\n").filter(Boolean).map(x=>`<li>${esc(x)}</li>`).join("")}</ol>` : esc(s.title);
+    return h+`<tr class="${s.kind==="weekend"?"weekend":""} ${now?"today":""}"><td class="dayname">${s.kind==="day"?dlabel(s.date):rangeLabel(s.date,s.end)}${now?'<div><span class="chip acc">sekarang</span></div>':""}</td><td><span class="chip ${s.to?"warn":s.kind==="weekend"?"acc":""}">${esc(s.label)}</span>${s.hours&&s.kind==="week"?`<div class="note">${s.hours} jam</div>`:""}</td><td>${title}</td><td>${esc(s.target)}</td><td><div style="display:flex;flex-direction:column;gap:6px">${ticks}${canWrite()?`<button type="button" class="btn sm" data-note-item="${s.id}">Catatan</button>`:""}${notes}</div></td></tr>`; }).join("");
+  return `<div class="spread"><div><h2>Jadwal latihan</h2><p class="lead">Centang tuntas bila target tercapai. Bila belum, ulangi sebelum pindah materi.</p></div><div class="subnav">${tabs.map(x=>`<button type="button" data-jtab="${esc(x)}" aria-pressed="${x===ui.jtab}">${esc(x)}</button>`).join("")}</div></div>
+  <div class="tbl-wrap"><table style="min-width:880px"><thead><tr><th>Tanggal</th><th>Kode</th><th>Materi / fokus</th><th>Target / dinilai</th><th>Tuntas</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+};
+
+/* ---------- Marking scheme ---------- */
+V.scheme = () => {
+  const jt=c=>c.subs.filter(s=>s.t==="J").reduce((a,s)=>a+(+s.max||0),0);
+  const tJ=scheme().reduce((a,c)=>a+jt(c),0), tT=schemeTotal();
+  return `<div><h2>Marking scheme</h2><p class="lead">Judgement ${fmt(tJ,0)} poin · Measurement ${fmt(tT-tJ,0)} poin · total ${fmt(tT,0)}. TO yang hanya mencakup sebagian kriteria dikonversi ke skala 100.</p></div>
+  <div class="tbl-wrap"><table><thead><tr><th>Kriteria</th><th class="n">J</th><th class="n">M</th><th class="n">Total</th></tr></thead><tbody>${scheme().map(c=>`<tr><td>${esc(c.id)} · ${esc(c.name)}</td><td class="n">${fmt(jt(c),0)}</td><td class="n">${fmt(critMax(c.id)-jt(c),0)}</td><td class="n"><b>${fmt(critMax(c.id),0)}</b></td></tr>`).join("")}<tr><td><b>Total</b></td><td class="n"><b>${fmt(tJ,0)}</b></td><td class="n"><b>${fmt(tT-tJ,0)}</b></td><td class="n"><b>${fmt(tT,0)}</b></td></tr></tbody></table></div>
+  <div class="grid g2"><div class="panel"><div class="label">Skala judgement</div>${(A.cfg.jlabel||[]).map(l=>`<p class="num" style="font-size:13px">${esc(l)}</p>`).join("")}<p class="note">Nilai = rata-rata juri ÷ 3 × poin maksimum. Selisih antar juri maksimal 1.</p></div>
+  <div class="panel"><div class="label">Aturan latihan</div><ul class="rules"><li>Bahan tambahan karena salah sendiri: −1 poin per item</li><li>Pelanggaran K3 berat: nilai 0</li><li>Lewat batas waktu: dihentikan, dinilai apa adanya</li><li>Fungsi dinilai dari attempt pertama</li></ul></div></div>
+  ${scheme().map(c=>`<div class="crit"><div class="crit-h"><h3>${esc(c.id)} · ${esc(c.name)}</h3><span class="num">${fmt(critMax(c.id),0)} poin</span></div><div class="tbl-wrap" style="border:none;border-radius:0"><table><thead><tr><th>Kode</th><th>Aspek</th><th>Jenis</th><th class="n">Maks</th></tr></thead><tbody>${c.subs.map(s=>`<tr><td class="num">${esc(s.id)}</td><td>${esc(s.d)}</td><td>${s.t==="J"?"Judgement 0–3":s.t==="C"?"Measurement, hitungan "+s.n:"Measurement Y/N"}</td><td class="n">${fmt(s.max,0)}</td></tr>`).join("")}</tbody></table></div></div>`).join("")}`;
+};
+
+/* ---------- Assessment ---------- */
+V.penilaian = () => {
+  if(!A.comps.length) return noComps(); if(!events().length) return `<div class="empty">Belum ada TO. ${isAdmin()?"Tambahkan di Pengaturan › TO.":""}</div>`;
+  if(!evById(ui.ev)) ui.ev = (events().find(e=>e.date>=todayId())||events()[0]).id; if(!compById(ui.cid)) ui.cid = A.comps[0].id;
+  const ev=evById(ui.ev), cid=ui.cid, rec=R("mark",ev.id,cid)||{marks:{}}; const locked=!!R("lock",ev.id)?.locked; const dis=(locked||!canWrite())?"disabled":"";
+  const c=calc(ev.id,cid), asp=scopeAsp(ev), filled=c?c.filled:0; const key=id=>ev.id+"/"+cid+"/"+id; const scope=(ev.scope||[]).map(String);
+  const crits=scheme().filter(cr=>scope.includes(String(cr.id))).map(cr=>{
+    const subs=cr.subs.map(s=>{ const v=rec.marks?.[s.id], pts=subPts(s,v), st=saveState[key(s.id)];
+      const sv = st==="saving"?'<span class="sv">…</span>':st==="err"?'<span class="sv bad">✗</span>':pts!==null?'<span class="sv good">✓</span>':"";
+      let ctrl, hint;
+      if(s.t==="M"){ hint="Y / N"; ctrl=`<input class="yn ${v===1?"y":v===0?"n":""}" type="text" maxlength="1" autocomplete="off" autocapitalize="characters" id="as-${s.id}" data-asp="${s.id}" data-kind="M" value="${v===1?"Y":v===0?"N":""}" aria-label="${esc(s.id)} Y atau N" ${dis}>`; }
+      else if(s.t==="C"){ hint=`0–${s.n}`; ctrl=`<input class="nb" type="number" inputmode="numeric" min="0" max="${s.n}" id="as-${s.id}" data-asp="${s.id}" data-kind="C" value="${v??""}" aria-label="${esc(s.id)}" ${dis}>`; }
+      else { hint="0–3 · selisih maks 1"; const a=Array.isArray(v)?v:[], bad=jBad[key(s.id)];
+        ctrl=`<div class="jx">${[0,1,2].map(k=>`<input class="jb ${bad?"bad":""}" type="number" inputmode="numeric" min="0" max="3" id="as-${s.id}-${k}" data-asp="${s.id}" data-kind="J" data-k="${k}" value="${bad?(bad[k]??""):(a[k]??"")}" placeholder="J${k+1}" aria-label="${esc(s.id)} juri ${k+1}" ${dis}>`).join("")}<button type="button" class="q" data-desc="${s.id}" aria-label="Arti nilai">?</button></div>`; }
+      return `<div class="asp">${typBadge(s)}<div class="asp-d"><span>${esc(s.d)}</span><span class="note">${esc(s.id)} · ${hint}</span>${ui.openDesc===s.id?`<div class="desc">${(A.cfg.jlabel||[]).map(l=>`<div>${esc(l)}</div>`).join("")}</div>`:""}</div><div class="asp-c">${ctrl}</div><div class="asp-p num">${sv} ${pts!==null?fmt(pts):"—"}<span class="muted"> / ${fmt(s.max)}</span></div></div>`; }).join("");
+    return `<div class="crit"><div class="crit-h"><h3>${esc(cr.id)} · ${esc(cr.name)}</h3><span class="num">${c?fmt(c.byCrit[cr.id]):fmt(0)} / ${fmt(critMax(cr.id))}</span></div>${subs}</div>`; }).join("");
+  const maxScope = scope.reduce((a,i)=>a+critMax(i),0);
+  return `<div><h2>Assessment · Marking Form</h2><p class="lead">Pilih peserta lalu TO. Aspek M: ketik Y atau N lalu Enter. Aspek J: isi nilai 1–3 juri. Tersimpan otomatis.</p></div>
+  <div class="panel"><div class="grid g3"><label class="f">Peserta<select id="cidSel">${A.comps.map(x=>`<option value="${x.id}" ${x.id===cid?"selected":""}>${esc(x.name)}</option>`).join("")}</select></label><label class="f">Try out<select id="evSel">${events().map(e=>`<option value="${e.id}" ${e.id===ev.id?"selected":""}>${esc(e.name)} · ${esc(e.label||dlabel(e.date))}</option>`).join("")}</select></label>
+    <div><div class="label">Progress</div><div class="row" style="margin-top:6px"><span class="big num" style="font-size:30px">${filled} / ${asp.length}</span><span class="muted">aspek</span></div></div></div>
+    <div class="row"><span class="chip">${esc(ev.focus||"")}</span><span class="chip">Batas ${fmt(ev.limit/60,0)} jam</span>${locked?'<span class="chip bad">MARKS LOCKED</span>':'<span class="chip acc">MARKS OPEN</span>'}</div></div>
+  <div style="display:flex;flex-direction:column;gap:14px">${crits||'<div class="empty">TO ini belum punya kriteria yang diujikan.</div>'}</div>
+  <div class="crit"><div class="crit-h"><h3>Catatan TO & aturan</h3><span class="num ${c&&(c.k3||c.bahan)?"down":""}">${c&&c.k3?"Nilai 0":c&&c.bahan?"−"+c.bahan:"tanpa potongan"}</span></div>
+    <div style="padding:14px;display:flex;flex-direction:column;gap:12px">
+    <div class="grid g3"><label class="f">Waktu dipakai (menit)<input type="number" inputmode="numeric" min="0" id="x-minutes" data-extra="minutes" value="${rec.minutes??""}" ${dis}></label><label class="f">Time plan (menit)<input type="number" inputmode="numeric" min="0" id="x-plan" data-extra="plan" value="${rec.plan??""}" ${dis}></label><label class="f">Bahan tambahan (−1 poin/item)<input type="number" inputmode="numeric" min="0" id="x-bahan" data-extra="bahan" value="${rec.bahan??""}" ${dis}></label></div>
+    <label class="tick"><input type="checkbox" id="x-k3" data-extra="k3" ${rec.k3?"checked":""} ${dis}>Pelanggaran K3 berat (nilai 0)</label>
+    <label class="f">Catatan juri<textarea id="evNote" ${dis}>${esc(rec.note||"")}</textarea></label></div></div>
+  <div class="total-bar"><div><div class="label" style="color:var(--band-muted)">${esc(cname(cid))} · ${esc(ev.name)}</div><div class="row"><span class="big num">${c?fmt(c.score,1):fmt(0,1)}</span><span style="color:var(--band-muted)">skala 100 · ${c?fmt(c.net):"0"} / ${fmt(maxScope,0)} poin · ${c&&c.complete?"COMPLETE":"PARTIAL"}</span></div></div>
+  ${isAdmin()?`<div class="row"><button class="btn sm" id="lockBtn">${locked?"Buka kunci nilai":"Kunci nilai"}</button></div>`:""}</div>`;
+};
+
+/* ---------- Results ---------- */
+function trendChart(cid){
+  const evs=events(); const W=640,H=250,L=40,R_=20,T=24,B=40,n=evs.length; if(n<1) return "";
+  const x=i=>n===1?(L+W-R_)/2:L+(W-L-R_)*(i/(n-1)), y=v=>T+(H-T-B)*(1-v/100); let g="";
+  [0,25,50,75,100].forEach(v=>{ g+=`<line x1="${L}" x2="${W-R_}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L-8}" y="${y(v)+4}" text-anchor="end" font-size="11" fill="var(--muted)" font-family="IBM Plex Mono,monospace">${v}</text>`; });
+  const tgt=A.cfg.selection?.target; if(tgt) g+=`<line x1="${L}" x2="${W-R_}" y1="${y(tgt)}" y2="${y(tgt)}" stroke="var(--muted)" stroke-dasharray="4 4"/><text x="${W-R_}" y="${y(tgt)-6}" text-anchor="end" font-size="11" fill="var(--muted)" font-family="IBM Plex Mono,monospace">target ${tgt}</text>`;
+  evs.forEach((e,i)=>{ g+=`<text x="${x(i)}" y="${H-B+22}" text-anchor="middle" font-size="11" fill="var(--muted)" font-family="IBM Plex Mono,monospace">${esc(e.name)}</text>`; });
+  A.comps.forEach(c=>{ const on=c.id===cid, col=compColor(c); const pts=evs.map((e,i)=>{ const r=calc(e.id,c.id); return r?[x(i),y(r.score),r.score]:null; }).filter(Boolean);
+    if(pts.length>1) g+=`<polyline fill="none" stroke="${col}" stroke-width="${on?3:1.5}" stroke-opacity="${on?1:.45}" points="${pts.map(p=>p[0]+","+p[1]).join(" ")}"/>`;
+    pts.forEach((p,k)=>{ g+=`<circle cx="${p[0]}" cy="${p[1]}" r="${on?(k===pts.length-1?5:3.5):2.5}" fill="${col}" fill-opacity="${on?1:.5}" stroke="var(--surface)" stroke-width="1.5"/>`; if(on) g+=`<text x="${p[0]}" y="${p[1]-10}" text-anchor="middle" font-size="11" font-weight="600" fill="${col}" font-family="IBM Plex Mono,monospace">${fmt(p[2],1)}</text>`; }); });
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Tren skor TO" style="max-width:100%;display:block">${g}</svg>`;
+}
+V.hasil = () => {
+  if(!A.comps.length) return noComps(); if(!compById(ui.rcid)) ui.rcid=A.comps[0].id; const cid=ui.rcid;
+  const runs=events().map(e=>({e,c:calc(e.id,cid)})).filter(r=>r.c), comp=runs.filter(r=>r.c.complete);
+  const avg=comp.length?comp.reduce((a,r)=>a+r.c.score,0)/comp.length:null;
+  const hi=runs.length?runs.reduce((a,r)=>r.c.score>a.c.score?r:a):null, lo=runs.length?runs.reduce((a,r)=>r.c.score<a.c.score?r:a):null;
+  const last=runs[runs.length-1], prev=runs[runs.length-2], delta=last&&prev?last.c.score-prev.c.score:null;
+  const tile=(l,v,s)=>`<div class="tile"><div class="label">${l}</div><div class="big num">${v}</div><div class="note">${s}</div></div>`;
+  const matrix=`<div class="tbl-wrap"><table><thead><tr><th>Kriteria</th>${events().map(e=>`<th class="n">${esc(e.name)}</th>`).join("")}<th class="n">Maks</th></tr></thead><tbody>${scheme().map(cr=>{ const mx=critMax(cr.id); return `<tr><td>${esc(cr.id)} · ${esc(cr.name)}</td>${events().map(e=>{ if(!(e.scope||[]).map(String).includes(String(cr.id))) return `<td class="n muted" title="tidak diujikan">·</td>`; const c=calc(e.id,cid); if(!c) return `<td class="n muted">—</td>`; const v=c.byCrit[cr.id], pc=mx?v/mx*100:0; return `<td class="n"><span class="pc ${pctCls(pc)}">${fmt(v)}</span><div class="note">${Math.round(pc)}%</div></td>`; }).join("")}<td class="n">${fmt(mx,0)}</td></tr>`; }).join("")}
+    <tr><td><b>Skor (skala 100)</b></td>${events().map(e=>{ const c=calc(e.id,cid); return `<td class="n"><b>${c?fmt(c.score,1):"—"}</b>${c&&(c.k3||c.bahan)?`<div class="note down">${c.k3?"K3":"−"+c.bahan}</div>`:""}</td>`; }).join("")}<td class="n">100</td></tr></tbody></table></div>`;
+  const cards=events().map((e,i)=>{ const c=calc(e.id,cid); if(!c) return `<div class="tocard empty-card"><div class="label">${esc(e.name)}</div><p class="note">${esc(e.label||dlabel(e.date))} · belum dinilai</p></div>`;
+    const pr=events().slice(0,i).map(x=>calc(x.id,cid)).filter(Boolean).pop(), d=pr?c.score-pr.score:null;
+    return `<button type="button" class="tocard ${ui.detail===e.id?"sel":""}" data-detail="${e.id}"><div class="spread"><span class="label">${esc(e.name)}</span><span class="chip ${c.complete?"good":"warn"}">${c.complete?"COMPLETE":"PARTIAL"}</span></div>
+    <div class="row"><span class="big num" style="font-size:32px">${fmt(c.score,1)}</span><span class="muted">/100</span>${d!==null?`<span class="${d>=0?"up":"down"} num">${d>=0?"▲":"▼"} ${fmt(Math.abs(d),1)}</span>`:""}</div>
+    <div class="minibars" style="grid-template-columns:repeat(${Math.max(1,scheme().length)},1fr)">${scheme().map(cr=>{ if(!(e.scope||[]).map(String).includes(String(cr.id))) return `<div><i style="height:4px;opacity:.3"></i><span>${esc(cr.id)}</span></div>`; const pc=critMax(cr.id)?c.byCrit[cr.id]/critMax(cr.id)*100:0; return `<div><i class="${pctCls(pc)}" style="height:${Math.max(4,pc)}%"></i><span>${esc(cr.id)}</span></div>`; }).join("")}</div></button>`; }).join("");
+  let detail="";
+  if(ui.detail&&evById(ui.detail)){ const e=evById(ui.detail), c=calc(e.id,cid), rec=R("mark",e.id,cid);
+    if(c) detail=`<div class="panel"><div class="spread"><h3>Rincian aspek · ${esc(e.name)}</h3><label class="tick"><input type="checkbox" id="lostOnly" ${ui.lostOnly?"checked":""}>Hanya nilai yang hilang</label></div>
+    ${scheme().filter(cr=>(e.scope||[]).map(String).includes(String(cr.id))).map(cr=>{ const rows=cr.subs.filter(a=>!ui.lostOnly||(c.byAsp[a.id]??0)<a.max).map(a=>{ const p=c.byAsp[a.id]; return `<div class="drow">${typBadge(a)}<span>${esc(a.id)} · ${esc(a.d)}</span><span class="dot ${p===null?"":p>=a.max?"good":p>0?"warn":"bad"}"></span><span class="num">${p===null?"—":fmt(p)} / ${fmt(a.max)}</span></div>`; }).join(""); return rows?`<div><div class="dhead"><span>${esc(cr.id)} · ${esc(cr.name)}</span><span class="num">${fmt(c.byCrit[cr.id])} / ${fmt(critMax(cr.id),0)}</span></div>${rows}</div>`:""; }).join("")||'<p class="muted">Semua aspek mendapat nilai penuh.</p>'}
+    <div class="row">${c.minutes?`<span class="chip">Waktu ${c.minutes} mnt${c.plan?` · plan ${c.plan} mnt (${c.minutes>c.plan?"+":""}${Math.round((c.minutes-c.plan)/c.plan*100)}%)`:""}</span>`:""}${c.bahan?`<span class="chip bad">Bahan tambahan ${c.bahan}</span>`:""}${c.k3?'<span class="chip bad">Pelanggaran K3 berat</span>':""}</div>
+    ${rec?.note?`<div class="entry"><span class="label">Catatan juri</span><p>${esc(rec.note)}</p></div>`:""}</div>`; }
+  const sel=A.comps.map(c=>({c,r:selection(c.id)})), w=sel[0]?.r.w||{}; const best=sel.filter(o=>o.r.idx!==null).sort((a,b)=>b.r.idx-a.r.idx)[0];
+  const sc=A.cfg.selection||{};
+  return `<div class="spread"><div><h2>Results</h2><p class="lead">Ringkasan, tren, dan capaian per kriteria.</p></div>${compSeg("data-rcid",cid)}</div>
+  <div class="panel"><div class="label">Summary · ${esc(cname(cid))}</div><div class="tiles">${tile("TO dinilai",runs.length+" / "+events().length,`${comp.length} complete · ${runs.length-comp.length} partial`)}${tile("Rata-rata",avg===null?"—":fmt(avg,1),"dari TO complete")}${tile("Tertinggi",hi?fmt(hi.c.score,1):"—",hi?esc(hi.e.name):"—")}${tile("Terendah",lo?fmt(lo.c.score,1):"—",lo?esc(lo.e.name):"—")}${tile("Terakhir",last?fmt(last.c.score,1):"—",last?`${esc(last.e.name)}${delta!==null?` · <span class="${delta>=0?"up":"down"}">${delta>=0?"▲":"▼"} ${fmt(Math.abs(delta),1)}</span>`:""}`:"—")}</div></div>
+  <div class="panel"><div class="spread"><h3>Tren skor TO</h3><div class="legend">${A.comps.map(c=>`<span><i style="background:${compColor(c)}"></i>${esc(c.name)}</span>`).join("")}</div></div>${A.comps.some(c=>events().some(e=>calc(e.id,c.id)))?trendChart(cid):'<div class="empty">Grafik muncul setelah TO pertama dinilai.</div>'}</div>
+  <div style="display:flex;flex-direction:column;gap:10px"><h3>Criterion Achievement Matrix</h3>${matrix}<p class="note">Hijau ≥ 90% · kuning 65–89% · merah &lt; 65% · titik = tidak diujikan.</p></div>
+  <div style="display:flex;flex-direction:column;gap:10px"><h3>Daftar TO</h3><div class="tocards">${cards}</div></div>
+  ${detail}
+  ${A.comps.length>1?`<div class="panel"><div class="spread"><h3>Seleksi peserta</h3><span class="chip">indikator saran</span></div><div class="tbl-wrap"><table><thead><tr><th>Pertimbangan</th><th class="n">Bobot</th>${sel.map(o=>`<th class="n">${esc(o.c.name)}</th>`).join("")}</tr></thead><tbody>
+    <tr><td>Rata-rata full simulation (${(sc.full||[]).map(id=>esc(evById(id)?.name||id)).join(", ")})</td><td class="n">${w.full||0}%</td>${sel.map(o=>`<td class="n">${o.r.avgFull===null?"—":fmt(o.r.avgFull,1)}<div class="note">${o.r.nFull} dari ${o.r.nFullTotal}</div></td>`).join("")}</tr>
+    <tr><td>Tren ${esc(evById(sc.trendFrom)?.name||"")} → ${esc(evById(sc.trendTo)?.name||"")}</td><td class="n">${w.trend||0}%</td>${sel.map(o=>`<td class="n">${o.r.trend===null?"—":(o.r.trend>=0?"▲ ":"▼ ")+fmt(Math.abs(o.r.trend),1)}</td>`).join("")}</tr>
+    <tr><td>Gate lulus</td><td class="n">${w.gate||0}%</td>${sel.map(o=>`<td class="n">${o.r.gp} / ${o.r.gt}</td>`).join("")}</tr>
+    <tr><td>Konsistensi (K3 berat, bahan tambahan)</td><td class="n">${w.kons||0}%</td>${sel.map(o=>`<td class="n">${fmt(o.r.kons,0)}<div class="note">K3 ${o.r.k3}× · bahan ${o.r.bahan}</div></td>`).join("")}</tr>
+    <tr><td><b>Indeks seleksi</b></td><td class="n">100%</td>${sel.map(o=>`<td class="n"><b>${o.r.idx===null?"—":fmt(o.r.idx,1)}</b>${best&&best.c.id===o.c.id&&sel.every(z=>z.r.idx!==null)?' <span class="chip good">tertinggi</span>':""}</td>`).join("")}</tr></tbody></table></div><p class="note">Bobot diatur admin di Pengaturan › Seleksi. Keputusan akhir tetap di tangan pembina.</p></div>`:""}`;
+};
+
+/* ---------- Gate ---------- */
+V.gate = () => {
+  if(!A.comps.length) return noComps(); if(!gates().length) return `<h2>Gate test</h2><div class="empty">Belum ada gate. ${isAdmin()?"Tambahkan di Pengaturan › Gate.":""}</div>`;
+  if(!compById(ui.gcid)) ui.gcid=A.comps[0].id; const cid=ui.gcid, c=compById(cid);
+  const cards=gates().map(g=>{ const st=gateStatus(cid,g.id), r=(R("gate","all",cid)||{})[g.id]||{};
+    return `<div class="panel gate ${st.done?"pass":""}"><div class="spread"><div><div class="label">${esc(g.ph||"")} ${g.phName?"· "+esc(g.phName):""}</div><h3>Gate ${esc(g.id)}</h3></div><span class="chip ${st.done?"good":st.n?"warn":""}">${st.done?"LULUS":st.n+" / "+st.total}</span></div>
+    <div style="display:flex;flex-direction:column;gap:8px">${g.items.map((it,i)=>`<label class="tick" style="white-space:normal"><input type="checkbox" data-gate="${esc(g.id)}" data-gi="${i}" ${(r.items||[])[i]?"checked":""} ${canWrite()?"":"disabled"}>${esc(it)}</label>`).join("")}</div>
+    ${st.done&&st.date?`<p class="note">Lulus ${dlabel(st.date,true)} ${st.date.slice(0,4)}</p>`:""}</div>`; }).join("");
+  return `<div class="spread"><div><h2>Gate test</h2><p class="lead">Naik fase karena lulus gate, bukan karena kalender.</p></div>${compSeg("data-gcid",cid)}</div>
+  <div class="panel"><div class="spread"><span class="label">${esc(c.name)}</span><span class="num">${gatesPassed(cid)} / ${gates().length} gate lulus</span></div><div class="bar"><i style="width:${gatesPassed(cid)/gates().length*100}%;background:${compColor(c)}"></i></div></div>
+  <div class="grid g3">${cards}</div>`;
+};
+
+/* ---------- Reports ---------- */
+function reportHTML(kind, eid, cid){
+  const e=evById(eid); if(!e) return ""; const blank=kind==="blank"; const c=blank?null:calc(eid,cid); const p=compById(cid)||{}; const rec=blank?null:R("mark",eid,cid); const scope=(e.scope||[]).map(String);
+  const head=`<div class="r-head"><div><div class="r-small">Training Information System (TIS)</div><div class="r-small">LKS SMK · Electrical Installations${CFG.SCHOOL?" · "+esc(CFG.SCHOOL):""}</div></div><div class="r-title">${kind==="summary"?"MARK SUMMARY FORM":"MARKING FORM"}</div></div>
+  <table class="r-meta"><tr><td>Musim</td><td>${esc(A.season.name)}</td></tr><tr><td>Try out</td><td><b>${esc(e.name)}</b> · ${esc(e.label||dlabel(e.date))} · ${esc(e.focus||"")}</td></tr><tr><td>Peserta</td><td><b>${blank?"………………………………":esc(p.name)}</b>${!blank&&p.sekolah?" · "+esc(p.sekolah):""}</td></tr><tr><td>Batas waktu</td><td>${fmt(e.limit/60,0)} jam${c?.minutes?" · dipakai "+c.minutes+" menit":""}</td></tr></table>`;
+  let body="";
+  if(kind==="summary"){ body=`<table class="r-tbl"><thead><tr><th>ID</th><th>Kriteria</th><th class="r-n">Nilai</th><th class="r-n">Maks</th></tr></thead><tbody>${scheme().map(cr=>scope.includes(String(cr.id))?`<tr><td>${esc(cr.id)}</td><td>${esc(cr.name)}</td><td class="r-n">${c?fmt(c.byCrit[cr.id]):""}</td><td class="r-n">${fmt(critMax(cr.id))}</td></tr>`:`<tr><td>${esc(cr.id)}</td><td>${esc(cr.name)} <i>(tidak diujikan)</i></td><td class="r-n">–</td><td class="r-n">–</td></tr>`).join("")}
+    <tr><td></td><td>Potongan bahan tambahan${c&&c.k3?" · pelanggaran K3 berat (nilai 0)":""}</td><td class="r-n">${c?(c.bahan?"−"+c.bahan:"0"):""}</td><td class="r-n"></td></tr>
+    <tr class="r-tot"><td></td><td>TOTAL</td><td class="r-n">${c?fmt(c.net):""}</td><td class="r-n">${fmt(scope.reduce((a,i)=>a+critMax(i),0))}</td></tr><tr class="r-tot"><td></td><td>SKOR SKALA 100</td><td class="r-n">${c?fmt(c.score):""}</td><td class="r-n">100,00</td></tr></tbody></table>`; }
+  else { body=scheme().filter(cr=>scope.includes(String(cr.id))).map(cr=>`<table class="r-tbl"><thead><tr><th colspan="2">${esc(cr.id)} · ${esc(cr.name)}</th><th>Jenis</th><th>Isian</th><th class="r-n">Nilai</th><th class="r-n">Maks</th></tr></thead><tbody>${cr.subs.map(a=>{ const v=rec?.marks?.[a.id]; let isi;
+      if(!blank) isi=a.t==="M"?(v===1?"Y":v===0?"N":""):a.t==="J"?jVals(v).join(" · "):(v??""); else isi=a.t==="M"?"Y / N":a.t==="J"?"J1 __ J2 __ J3 __":`__ / ${a.n}`;
+      return `<tr><td>${esc(a.id)}</td><td>${esc(a.d)}</td><td>${a.t==="J"?"J":"M"}</td><td>${isi}</td><td class="r-n">${c&&c.byAsp[a.id]!=null?fmt(c.byAsp[a.id]):""}</td><td class="r-n">${fmt(a.max)}</td></tr>`; }).join("")}</tbody></table>`).join("")
+      +`<table class="r-tbl"><tbody><tr><td>Bahan tambahan (item)</td><td class="r-n">${blank?"____":c?c.bahan:""}</td></tr><tr><td>Pelanggaran K3 berat</td><td class="r-n">${blank?"Ya / Tidak":c?(c.k3?"Ya":"Tidak"):""}</td></tr><tr class="r-tot"><td>SKOR SKALA 100</td><td class="r-n">${c?fmt(c.score):""}</td></tr></tbody></table>`; }
+  return `<div class="paper">${head}${body}<div class="r-sign"><div><div class="r-line"></div>Juri 1</div><div><div class="r-line"></div>Juri 2</div><div><div class="r-line"></div>Peserta</div></div><div class="r-foot">TIS ${VERSION} · dicetak ${new Date().toLocaleDateString("id-ID")}</div></div>`;
+}
+V.laporan = () => {
+  if(!events().length) return `<div class="empty">Belum ada TO.</div>`; if(!evById(ui.pev)) ui.pev=events()[0].id; if(!compById(ui.pcid)&&A.comps.length) ui.pcid=A.comps[0].id;
+  const kinds=[["summary","Mark Summary Form"],["form","Marking Form (berisi nilai)"],["blank","Marking Form kosong"]];
+  return `<div class="no-print"><h2>Reports</h2><p class="lead">Lembar bergaya CIS. Tekan Cetak lalu pilih printer atau Save as PDF, kertas A4 tegak, dan matikan Headers and footers.</p></div>
+  <div class="panel no-print"><div class="grid g3"><label class="f">Dokumen<select id="rKind">${kinds.map(k=>`<option value="${k[0]}" ${k[0]===ui.pkind?"selected":""}>${k[1]}</option>`).join("")}</select></label><label class="f">Peserta<select id="rCid" ${ui.pkind==="blank"?"disabled":""}>${A.comps.map(c=>`<option value="${c.id}" ${c.id===ui.pcid?"selected":""}>${esc(c.name)}</option>`).join("")}</select></label><label class="f">Try out<select id="rEv">${events().map(e=>`<option value="${e.id}" ${e.id===ui.pev?"selected":""}>${esc(e.name)} · ${esc(e.label||dlabel(e.date))}</option>`).join("")}</select></label></div>
+  <div><button class="btn primary" id="printBtn">Cetak</button></div></div>
+  <div class="paper-wrap">${reportHTML(ui.pkind,ui.pev,ui.pcid)}</div>`;
+};
+
+/* ---------- Jurnal ---------- */
+V.jurnal = () => {
+  if(!A.comps.length) return noComps();
+  const list=Object.values(A.rec).filter(r=>r.kind==="journal").map(r=>({id:r.id,cid:r.competitor_id,...r.data})).sort((a,b)=>(b.date||"").localeCompare(a.date||"")||(b.at||0)-(a.at||0));
+  const kond=["Baik","Lelah","Ada keluhan"];
+  const items=list.length?list.map(j=>{ const dev=j.dev!==undefined&&j.dev!==""?+j.dev:null, tp=j.waktu&&j.plan?Math.round((j.waktu-j.plan)/j.plan*100):null; const c=compById(j.cid);
+    return `<div class="entry" style="border-left-color:${c?compColor(c):"var(--line)"}"><div class="spread"><b>${dlabel(j.date||todayId(),true)} · ${esc(cname(j.cid))}${j.drill?" · "+esc(j.drill):""}</b>${canWrite()?`<button class="btn sm" data-del="${esc(j.id)}">Hapus</button>`:""}</div>
+    <div class="row">${j.waktu?`<span class="chip">${esc(j.waktu)} mnt${tp!==null?` · plan ${tp>0?"+":""}${tp}%`:""}</span>`:""}${dev!==null?`<span class="chip ${dev<=2?"good":"bad"}">deviasi ${fmt(dev,1)} mm</span>`:""}${j.cacat?`<span class="chip warn">${esc(j.cacat)} cacat</span>`:""}${j.bahan?`<span class="chip bad">${esc(j.bahan)} bahan tambahan</span>`:""}${j.kondisi?`<span class="chip ${j.kondisi==="Baik"?"good":"warn"}">${esc(j.kondisi)}${j.tidur?" · tidur "+esc(j.tidur)+" j":""}</span>`:""}</div>
+    ${j.bisa?`<p><span class="label">Sudah bisa</span><br>${esc(j.bisa)}</p>`:""}${j.belum?`<p><span class="label">Belum bisa</span><br>${esc(j.belum)}</p>`:""}</div>`; }).join("") : '<div class="empty">Belum ada catatan. Isi setiap sore: waktu, deviasi, cacat, dan apa yang belum bisa.</div>';
+  return `<div><h2>Jurnal latihan</h2><p class="lead">Data harian yang layak dicatat menurut silabus.</p></div>
+  ${canWrite()?`<form class="panel" id="jForm"><div class="grid g3"><label class="f">Tanggal<input type="date" id="jDate" value="${todayId()}" required></label><label class="f">Peserta<select id="jCid">${A.comps.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join("")}</select></label><label class="f">Drill / pekerjaan<input type="text" id="jDrill"></label></div>
+  <div class="grid g3"><label class="f">Waktu (menit)<input type="number" inputmode="numeric" id="jWaktu" min="0"></label><label class="f">Time plan (menit)<input type="number" inputmode="numeric" id="jPlan" min="0"></label><label class="f">Deviasi maks (mm)<input type="number" inputmode="decimal" id="jDev" min="0" step="0.5"></label>
+  <label class="f">Jumlah cacat<input type="number" inputmode="numeric" id="jCacat" min="0"></label><label class="f">Bahan tambahan<input type="number" inputmode="numeric" id="jBahan" min="0"></label><label class="f">Kondisi siswa<select id="jKondisi"><option value="">–</option>${kond.map(k=>`<option>${k}</option>`).join("")}</select></label><label class="f">Tidur semalam (jam)<input type="number" inputmode="decimal" id="jTidur" min="0" max="14" step="0.5"></label></div>
+  <div class="grid g2"><label class="f">Sudah bisa<textarea id="jBisa"></textarea></label><label class="f">Belum bisa<textarea id="jBelum"></textarea></label></div>
+  <div><button class="btn primary" type="submit">Simpan catatan</button></div></form>`:""}
+  <div class="panel">${items}</div>`;
+};
+
+/* ---------- Peserta ---------- */
+V.peserta = () => {
+  const rows=A.comps.map((c,i)=>`<div class="panel"><div class="row">${badge(c)}<h3>Peserta ${i+1}</h3></div>
+    <label class="f">Nama lengkap<input type="text" id="pn-${c.id}" value="${esc(c.name)}" ${isAdmin()?"":"disabled"}></label>
+    <div class="grid g2"><label class="f">Kelas<input type="text" id="pk-${c.id}" value="${esc(c.kelas)}" ${isAdmin()?"":"disabled"}></label><label class="f">Peran<input type="text" id="pr-${c.id}" value="${esc(c.peran)}" ${isAdmin()?"":"disabled"}></label></div>
+    <label class="f">Sekolah<input type="text" id="ps-${c.id}" value="${esc(c.sekolah)}" ${isAdmin()?"":"disabled"}></label>
+    ${isAdmin()?`<div class="row"><button class="btn sm primary" data-savecomp="${c.id}">Simpan</button><button class="btn sm danger" data-delcomp="${c.id}">Hapus peserta</button></div>`:""}</div>`).join("");
+  return `<div><h2>Peserta</h2><p class="lead">Peserta musim ${esc(A.season.name)}. ${isAdmin()?"Menghapus peserta juga menghapus semua nilai dan jurnalnya.":""}</p></div>
+  <div class="grid g2">${rows||noComps()}</div>${isAdmin()?'<div><button class="btn" id="addComp">+ Tambah peserta</button></div>':""}`;
+};
+
+/* ---------- Profil ---------- */
+V.profil = () => `<div><h2>Profil</h2></div>
+  <div class="grid g2"><div class="panel"><div class="label">Akun</div>
+    <label class="f">Nama tampilan<input type="text" id="prName" value="${esc(A.profile?.name||"")}"></label>
+    <p class="note">E-mail: ${esc(A.user?.email||"")} · Peran: ${esc({admin:"Admin",juri:"Juri",viewer:"Pengamat"}[role()])}</p>
+    <div><button class="btn sm primary" id="prSave">Simpan nama</button></div></div>
+  ${DEMO?"":`<form class="panel" id="pwForm"><div class="label">Ganti kata sandi</div><label class="f">Kata sandi baru<input type="password" id="pw1" minlength="6" autocomplete="new-password" required></label><label class="f">Ulangi kata sandi<input type="password" id="pw2" minlength="6" autocomplete="new-password" required></label><div><button class="btn sm primary" type="submit">Ganti kata sandi</button></div><p class="note">Minimal 6 karakter. Hanya Anda yang bisa mengganti kata sandi ini.</p></form>`}</div>
+  <div class="panel"><div class="label">Pasang di HP</div><p>Buka alamat aplikasi ini di Chrome (Android) atau Safari (iPhone), lalu pilih menu <b>Tambahkan ke layar utama</b>. Ikon TIS akan muncul seperti aplikasi.</p></div>`;

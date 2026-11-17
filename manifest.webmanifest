@@ -1,0 +1,9 @@
+{
+  "name": "TIS LKS Instalasi Listrik",
+  "short_name": "TIS LKS",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#EDF0F3",
+  "theme_color": "#13202B",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
