@@ -1,14 +1,6 @@
-/*
-  Pengaturan koneksi TIS.
-  Isi dua baris di bawah dengan data dari Supabase:
-  Supabase > Project Settings > API (atau "Connect") > Project URL dan anon public key.
-
-  Biarkan kosong ("") untuk mencoba aplikasi dalam MODE DEMO
-  (data hanya tersimpan di browser perangkat itu saja).
-*/
 window.TIS_CONFIG = {
-  SUPABASE_URL: "",
-  SUPABASE_ANON_KEY: "",
+  SUPABASE_URL: "https://qmeycxbqvfqwfzoevmnv.supabase.co",
+  SUPABASE_ANON_KEY: "sb_publishable_pbNK7GOQ6ZIO89SO1ioz_w_PTj_NB79",
   APP_NAME: "TIS LKS Instalasi Listrik",
-  SCHOOL: ""
+  SCHOOL: "SMK Negeri 1 Jakarta"
 };
