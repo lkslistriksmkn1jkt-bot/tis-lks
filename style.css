@@ -209,6 +209,35 @@ input,select,textarea,button{font-size:16px}
   header .wrap{padding-block:14px 0;gap:10px}
   h1{font-size:28px}
 }
+/* tombol berupa tautan & kontras tombol utama di mode gelap */
 a.btn{text-decoration:none;display:inline-block}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .btn.primary{color:#0B1520}}
 :root[data-theme="dark"] .btn.primary{color:#0B1520}
+
+/* ---- tabel jadi kartu di layar HP ---- */
+@media (max-width:760px){
+  .tbl-wrap.rwrap{overflow:visible;border:none;background:transparent;border-radius:0}
+  table.rtbl{min-width:0!important;display:block;width:100%}
+  .rtbl thead{display:none}
+  .rtbl tbody{display:flex;flex-direction:column;gap:10px}
+  .rtbl tr{display:flex;flex-direction:column;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+  .rtbl tr.grp{background:transparent;border:none;padding:10px 2px 0;gap:2px}
+  .rtbl tr.weekend{background:var(--sunk)}
+  .rtbl tr.today{border:2px solid var(--accent);background:var(--accent-soft)}
+  .rtbl td{display:block;border:none!important;padding:0!important;background:transparent!important;font-size:15px}
+  .rtbl td:empty{display:none}
+  .rtbl td[data-l]::before{content:attr(data-l);display:block;font-family:var(--f-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+  .rtbl td.n{text-align:left}
+  .rtbl input,.rtbl select,.rtbl textarea{width:100%!important;min-width:0!important;max-width:100%;font-size:16px!important;padding:9px 10px!important}
+  .rtbl textarea{min-height:90px}
+  .rtbl .scope-ck{gap:10px 16px}
+  .rtbl .scope-ck label{font-size:15px;gap:6px}
+  .rtbl .scope-ck input{width:20px!important;height:20px}
+  .rtbl .tick{white-space:normal;font-size:15px}
+  .rtbl .btn{padding:8px 12px}
+  .subnav button{font-size:14px;padding:7px 14px}
+}
+@media (max-width:760px){ .rtbl input[type=checkbox]{width:20px!important;height:20px;padding:0!important;flex:none} }
+
+.focus-ta{min-width:300px;min-height:84px;font-size:15px;line-height:1.45}
+@media (max-width:760px){.rtbl textarea.focus-ta{min-height:110px}}

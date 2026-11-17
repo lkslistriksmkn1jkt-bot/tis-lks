@@ -96,6 +96,7 @@ Ikon TIS akan muncul seperti aplikasi biasa. Setiap juri masuk dengan akunnya se
 
 - **Musim baru (tahun depan):** Pengaturan › Musim › *Buat musim baru*. Jadwal, TO, scheme, dan gate disalin dengan tanggal digeser otomatis (misalnya 52 minggu). Data musim lama tetap tersimpan dan bisa dibuka kapan saja lewat pilihan *Musim* di bagian atas.
 - **Ubah jadwal, TO, marking scheme, gate, angka teknis, bobot seleksi:** semua lewat menu Pengaturan, dan bisa dari HP.
+- **Ubah banyak sekaligus lewat Excel:** Pengaturan › Excel › *Unduh Excel* → edit di laptop/Google Sheets → *Baca berkas* → periksa ringkasan → *Terapkan & simpan*. Jangan ubah kolom ID untuk TO dan aspek yang sudah dinilai.
 - **Cadangan:** Pengaturan › Backup › *Unduh cadangan* setiap bulan, lalu simpan di Google Drive.
 - **Batas paket gratis Supabase:** 500 MB database. Ini jauh lebih dari cukup untuk data latihan bertahun-tahun. Proyek gratis yang **tidak dibuka selama 7 hari** akan dijeda otomatis oleh Supabase. Cukup buka dashboard Supabase dan klik **Restore** bila itu terjadi. Selama aplikasi dipakai rutin, hal ini tidak terjadi.
 - **Lupa kata sandi:** admin membuka Supabase › Authentication › Users › pilih pengguna › *Send password recovery*, atau hapus lalu buat ulang akunnya.

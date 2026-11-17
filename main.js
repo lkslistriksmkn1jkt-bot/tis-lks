@@ -128,6 +128,10 @@ document.addEventListener("click", async e=>{
   if(t.id==="nsCreate"){ await createSeason(); return; }
   if(t.id==="loadUsers"){ try{ A.profiles=await Store.listProfiles(); render(); }catch(err){ toast(errMsg(err)); } return; }
   if(t.id==="bkExport"){ exportBackup(); return; }
+  if(t.id==="xlExport"){ await exportExcel(); return; }
+  if(t.id==="xlRead"){ await readExcel(); return; }
+  if(t.id==="xlApply"){ await applyExcel(); return; }
+  if(t.id==="xlClear"){ ui.xl=null; render(); return; }
   if(t.id==="bkImport"){ await importBackup(); return; }
 });
 
@@ -150,6 +154,7 @@ document.addEventListener("change", async e=>{
   /* pengaturan: perubahan struktur */
   if(t.dataset.e && t.tagName==="SELECT"){ setPath(ui.edit,t.dataset.e,t.value); ui.dirty=true; if(/\.t$|\.kind$/.test(t.dataset.e)) render(); return; }
   if(t.dataset.scope!==undefined){ const ev=ui.edit.events[+t.dataset.scope]; ev.scope=ev.scope||[]; const c=isNaN(+t.dataset.crit)?t.dataset.crit:+t.dataset.crit; ev.scope=ev.scope.filter(x=>String(x)!==String(c)); if(t.checked) ev.scope.push(c); ev.scope.sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true})); ui.dirty=true; return; }
+  if(t.dataset.xlsheet){ ui.xl[t.dataset.xlsheet].apply=t.checked; return; }
   if(t.dataset.selfull){ const s=ui.edit.selection; s.full=(s.full||[]).filter(x=>x!==t.dataset.selfull); if(t.checked) s.full.push(t.dataset.selfull); ui.dirty=true; return; }
 });
 
