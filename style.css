@@ -209,3 +209,6 @@ input,select,textarea,button{font-size:16px}
   header .wrap{padding-block:14px 0;gap:10px}
   h1{font-size:28px}
 }
+a.btn{text-decoration:none;display:inline-block}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .btn.primary{color:#0B1520}}
+:root[data-theme="dark"] .btn.primary{color:#0B1520}
