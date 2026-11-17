@@ -101,6 +101,17 @@ Ikon TIS akan muncul seperti aplikasi biasa. Setiap juri masuk dengan akunnya se
 - **Batas paket gratis Supabase:** 500 MB database. Ini jauh lebih dari cukup untuk data latihan bertahun-tahun. Proyek gratis yang **tidak dibuka selama 7 hari** akan dijeda otomatis oleh Supabase. Cukup buka dashboard Supabase dan klik **Restore** bila itu terjadi. Selama aplikasi dipakai rutin, hal ini tidak terjadi.
 - **Lupa kata sandi:** admin membuka Supabase › Authentication › Users › pilih pengguna › *Send password recovery*, atau hapus lalu buat ulang akunnya.
 
+## Log harian asisten
+
+Menu **Log Harian** berisi:
+- **Laporan asisten**, diisi setiap selesai latihan: jam, peserta hadir, kegiatan, capaian siswa, kendala, alat/bahan.
+- **Aktivitas otomatis**: siapa mengisi nilai, mencentang jadwal, gate, atau jurnal, dan jam berapa.
+- **Rekap**: siapa yang sudah atau belum mengisi log dalam 10 hari latihan terakhir.
+
+Bagi pemasangan lama, jalankan `update-log.sql` **sekali** di Supabase (SQL Editor › New query › tempel › Run). Pemasangan baru tidak perlu, karena isinya sudah termasuk di `setup.sql`.
+
+Nama setiap pengguna bisa diganti admin di **Pengaturan › Pengguna**, atau oleh pengguna itu sendiri di **Profil**.
+
 ## Masalah yang sering ditemui
 
 | Gejala | Penyebab dan solusi |

@@ -2,7 +2,7 @@
    Router, render, dan interaksi
    ===================================================================== */
 "use strict";
-const ROUTES = ["beranda","jadwal","scheme","penilaian","hasil","gate","laporan","jurnal","peserta","pengaturan","profil"];
+const ROUTES = ["beranda","jadwal","scheme","penilaian","hasil","gate","laporan","jurnal","log","peserta","pengaturan","profil"];
 const route = () => { const h=(location.hash||"").slice(1); return ROUTES.includes(h) ? h : "beranda"; };
 let unsub = null;
 
@@ -27,7 +27,7 @@ async function openSeason(id){
   try{ localStorage.setItem("tis-season", id); }catch(e){}
   const d=await Store.loadSeason(id); A.comps=d.competitors.sort((a,b)=>(a.sort||0)-(b.sort||0)); A.rec={}; d.records.forEach(r=>A.rec[r.id]=r);
   if(unsub) unsub();
-  unsub = Store.subscribe(id, p=>{ if(p.eventType==="DELETE"){ delete A.rec[p.old.id]; } else { const r=p.new; const k=r.id; if(saveState[k]==="saving") return; A.rec[k]=r; } render(); }, debounce(async()=>{ await reloadSeason(); },500));
+  unsub = Store.subscribe(id, p=>{ if(p.eventType==="DELETE"){ delete A.rec[p.old.id]; } else { const r=p.new; const k=r.id; if(saveState[k]==="saving") return; A.rec[k]=r; } render(); refreshAct(); }, debounce(async()=>{ await reloadSeason(); },500));
   render();
 }
 async function reloadSeason(){
@@ -37,6 +37,7 @@ async function reloadSeason(){
 }
 async function afterLogin(res){
   A.user=res.user; A.profile=res.profile; A.loginErr=null;
+  try{ A.profiles=await Store.listProfiles(); }catch(e){ A.profiles=[]; }
   try{ A.seasons=await Store.listSeasons(); }catch(e){ toast(errMsg(e)); A.seasons=[]; }
   let saved=null; try{ saved=localStorage.getItem("tis-season"); }catch(e){}
   const s=A.seasons.find(x=>x.id===saved)||A.seasons.find(x=>x.active)||A.seasons[0];
@@ -50,7 +51,18 @@ async function boot(){
   window.addEventListener("offline", ()=>{ A.online=false; render(); });
   document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible"&&A.season&&!DEMO) reloadSeason(); });
 }
-window.addEventListener("hashchange", ()=>{ render(); window.scrollTo(0,0); });
+window.addEventListener("hashchange", ()=>{ if(route()==="log") ui.actFor=null; render(); window.scrollTo(0,0); });
+
+/* ---------------- Log harian ---------------- */
+async function loadAct(d){
+  const key=A.season.id+"|"+d; ui.actFor=key; A.act=null; A.actErr=null;
+  const from=new Date(dparts(d)).toISOString(), to=new Date(dparts(addDays(d,1))).toISOString();
+  try{ const rows=await Store.listActivity(A.season.id, from, to); if(ui.actFor!==key) return; A.act=rows; }
+  catch(e){ if(ui.actFor!==key) return; A.actErr=errMsg(e); }
+  setTimeout(render,0);
+}
+const refreshAct = debounce(()=>{ if(route()==="log"&&A.season) loadAct(ui.logDate||todayId()); }, 1500);
+function setLogDate(d){ ui.logDate=d; ui.actFor=null; render(); }
 
 /* ---------------- Penilaian ---------------- */
 function markDoc(ev,cid){ return clone(R("mark",ev,cid)||{ marks:{} }); }
@@ -89,6 +101,10 @@ document.addEventListener("click", async e=>{
   if(t.id==="signOut"){ e.preventDefault(); await Store.signOut(); A.user=null; A.season=null; if(unsub) unsub(); render(); return; }
   if(t.id==="seedSeason"){ const s={ id:uid(), name:"LKS EI (template)", active:true, config:clone(window.TIS_SEED) }; try{ await Store.saveSeason(s); A.seasons=await Store.listSeasons(); await openSeason(s.id); }catch(err){ toast(errMsg(err)); } return; }
   if(t.dataset.ev){ ui.ev=t.dataset.ev; rememberUI(); }
+  if(t.dataset.logday!==undefined){ const n=+t.dataset.logday; setLogDate(n===0?todayId():addDays(ui.logDate||todayId(),n)); return; }
+  if(t.dataset.logto){ e.preventDefault(); setLogDate(t.dataset.logto); window.scrollTo(0,0); return; }
+  if(t.id==="actReload"){ ui.actFor=null; render(); return; }
+  if(t.dataset.dellog){ if(confirm("Hapus log harian ini?")){ try{ await Store.deleteRecord(t.dataset.dellog); delete A.rec[t.dataset.dellog]; ui.actFor=null; render(); toast("Log dihapus."); }catch(err){ toast(errMsg(err)); } } return; }
   if(t.id==="qShow"){ ui.quizShow=!ui.quizShow; render(); return; }
   if(t.id==="qNew"){ newQuiz(); render(); return; }
   if(t.dataset.jtab){ ui.jtab=t.dataset.jtab; rememberUI(); render(); return; }
@@ -106,7 +122,7 @@ document.addEventListener("click", async e=>{
   if(t.dataset.delcomp){ const c=compById(t.dataset.delcomp); if(!confirm(`Hapus ${c.name} beserta semua nilai dan jurnalnya? Tindakan ini tidak bisa dibatalkan.`)) return; try{ await Store.deleteCompetitor(c.id); A.comps=A.comps.filter(x=>x.id!==c.id); Object.keys(A.rec).forEach(k=>{ if(A.rec[k].competitor_id===c.id) delete A.rec[k]; }); render(); toast("Peserta dihapus."); }catch(err){ toast(errMsg(err)); } return; }
   if(t.id==="addComp"){ const c={ id:uid(), season_id:A.season.id, name:"Peserta baru", kelas:"", sekolah:"", peran:"Peserta", sort:(A.comps.length?Math.max(...A.comps.map(x=>x.sort||0)):0)+1 }; try{ const s=await Store.saveCompetitor(c); A.comps.push({...c,...s}); render(); }catch(err){ toast(errMsg(err)); } return; }
   /* profil */
-  if(t.id==="prSave"){ const n=document.getElementById("prName").value.trim(); try{ await Store.updateName(n); A.profile.name=n; toast("Nama disimpan."); render(); }catch(err){ toast(errMsg(err)); } return; }
+  if(t.id==="prSave"){ const n=document.getElementById("prName").value.trim(); try{ await Store.updateName(n); A.profile.name=n; const me=(A.profiles||[]).find(x=>x.id===A.user.id); if(me) me.name=n; toast("Nama disimpan."); render(); }catch(err){ toast(errMsg(err)); } return; }
   /* pengaturan */
   if(t.dataset.set){ if(ui.dirty&&!confirm("Perubahan belum disimpan. Tinggalkan?")) return; ui.set=t.dataset.set; ui.editKey=null; rememberUI(); if(ui.set==="pengguna"&&!DEMO&&!A.profiles.length){ try{ A.profiles=await Store.listProfiles(); }catch(err){ toast(errMsg(err)); } } render(); return; }
   if(t.id==="setSave"){ await saveSettings(); return; }
@@ -139,6 +155,8 @@ document.addEventListener("click", async e=>{
 document.addEventListener("change", async e=>{
   const t=e.target;
   if(t.id==="seasonSel"){ await openSeason(t.value); return; }
+  if(t.id==="logDate"){ if(t.value) setLogDate(t.value); return; }
+  if(t.dataset.uname){ const id=t.dataset.uname, n=t.value.trim(); try{ await Store.setName(id, n); const p=A.profiles.find(x=>x.id===id); if(p) p.name=n; if(id===A.user.id) A.profile.name=n; toast("Nama disimpan."); render(); }catch(err){ toast(errMsg(err)); } return; }
   if(t.dataset.asp){ if(t.dataset.done){ delete t.dataset.done; return; } if(t.dataset.kind==="J"){ const id=t.dataset.asp; setTimeout(()=>{ const a=document.activeElement; if(a&&a.dataset&&a.dataset.asp===id&&a.dataset.kind==="J") return; commitAsp(t); },0); } else commitAsp(t); return; }
   if(t.dataset.extra){ const f=t.dataset.extra; const v=f==="k3"?t.checked:(t.value===""?null:Math.max(0,Math.round(+t.value))); await saveMark(ui.ev,ui.cid,f,d=>{ d[f]=v; }); return; }
   if(t.dataset.done){ const d=clone(R("done",t.dataset.done,t.dataset.cid)||{}); d.done=t.checked; d.at=Date.now(); await saveRec("done", t.dataset.done, t.dataset.cid, d); return; }
@@ -175,6 +193,10 @@ document.addEventListener("submit", async e=>{
     try{ const res=await Store.signIn(document.getElementById("lgEmail").value.trim(), document.getElementById("lgPass").value); A.loading=true; render(); await afterLogin(res); }
     catch(err){ A.loginErr=errMsg(err); render(); } return; }
   if(f.id==="pwForm"){ const a=document.getElementById("pw1").value, b=document.getElementById("pw2").value; if(a!==b){ toast("Kedua kata sandi tidak sama."); return; } try{ await Store.updatePassword(a); toast("Kata sandi berhasil diganti."); f.reset(); }catch(err){ toast(errMsg(err)); } return; }
+  if(f.id==="logForm"){ const g=id=>document.getElementById(id).value.trim(); const d=ui.logDate||todayId();
+    const data={ date:d, start:g("lgStart"), end:g("lgEnd"), sesuai:g("lgSesuai"), hadir:[...document.querySelectorAll("[data-hadir]")].filter(x=>x.checked).map(x=>x.dataset.hadir), kegiatan:g("lgKeg"), capaian:g("lgCap"), kendala:g("lgKen"), bahan:g("lgBahan"), by:A.user.id, name:A.profile?.name||A.user?.email||"", at:Date.now() };
+    if(!data.kegiatan){ toast("Isi dulu kegiatan yang dilakukan."); return; }
+    if(await saveRec("log", d+"~"+A.user.id, null, data)){ toast("Log disimpan."); refreshAct(); } return; }
   if(f.id==="jForm"){ const g=id=>document.getElementById(id).value.trim();
     const data={ date:g("jDate")||todayId(), drill:g("jDrill"), waktu:g("jWaktu"), plan:g("jPlan"), dev:g("jDev"), cacat:g("jCacat"), bahan:g("jBahan"), kondisi:g("jKondisi"), tidur:g("jTidur"), bisa:g("jBisa"), belum:g("jBelum"), at:Date.now(), by:A.profile?.name||"" };
     if(!data.drill&&!data.bisa&&!data.belum&&!data.waktu){ toast("Isi minimal drill, waktu, atau catatan."); return; }

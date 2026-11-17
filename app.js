@@ -17,7 +17,11 @@ const LocalStore = {
   load(){ try{ this.db = JSON.parse(localStorage.getItem(this.key) || "null"); }catch(e){ this.db = null; }
     if(!this.db){ const sid = uid(); this.db = { seasons:[{id:sid,name:"LKS EI 2026–2027 (demo)",active:true,config:clone(window.TIS_SEED),created_at:new Date().toISOString()}],
       competitors:[{id:uid(),season_id:sid,name:"Siswa kelas XI",kelas:"XI",sekolah:"",peran:"Peserta",sort:1},{id:uid(),season_id:sid,name:"Siswa kelas X",kelas:"X",sekolah:"",peran:"Peserta",sort:2}],
-      records:[], profiles:[{id:"demo",name:"Pembina (demo)",email:"demo@lokal",role:"admin"}] }; this.save(); } },
+      records:[], activity:[], profiles:[{id:"demo",name:"Pembina (demo)",email:"demo@lokal",role:"admin"}] }; this.save(); } if(!this.db.activity) this.db.activity=[]; },
+  act(r, action){ const now=new Date().toISOString(); const last=action!=="hapus"&&this.db.activity.find(a=>a.rec_id===r.id&&a.user_id==="demo"&&a.action!=="hapus"&&Date.now()-Date.parse(a.at)<900000);
+    if(last){ last.at=now; last.n++; } else this.db.activity.unshift({ id:Date.now()+Math.random(), season_id:r.season_id, rec_id:r.id, kind:r.kind, ref:r.ref, competitor_id:r.competitor_id, action, n:1, user_id:"demo", first_at:now, at:now }); },
+  async listActivity(sid, from, to){ return clone(this.db.activity.filter(a=>a.season_id===sid&&a.at>=from&&a.at<to)); },
+  async setName(id, n){ const p=this.db.profiles.find(x=>x.id===id); if(p){ p.name=n; this.save(); } },
   save(){ try{ localStorage.setItem(this.key, JSON.stringify(this.db)); }catch(e){ toast("Penyimpanan browser penuh."); } },
   async init(){ this.load(); return { user:{id:"demo",email:"demo@lokal"}, profile:this.db.profiles[0] }; },
   async signIn(){ return {}; }, async signOut(){}, async updatePassword(){ return {}; },
@@ -28,9 +32,9 @@ const LocalStore = {
   async deleteSeason(id){ this.db.seasons=this.db.seasons.filter(s=>s.id!==id); this.db.competitors=this.db.competitors.filter(c=>c.season_id!==id); this.db.records=this.db.records.filter(r=>r.season_id!==id); this.save(); },
   async saveCompetitor(c){ const i=this.db.competitors.findIndex(x=>x.id===c.id); if(i>=0) this.db.competitors[i]=clone(c); else this.db.competitors.push(clone(c)); this.save(); return c; },
   async deleteCompetitor(id){ this.db.competitors=this.db.competitors.filter(c=>c.id!==id); this.db.records=this.db.records.filter(r=>r.competitor_id!==id); this.save(); },
-  async upsertRecord(r){ const i=this.db.records.findIndex(x=>x.id===r.id); r.updated_at=new Date().toISOString(); if(i>=0) this.db.records[i]=clone(r); else this.db.records.push(clone(r)); this.save(); return r; },
+  async upsertRecord(r){ const i=this.db.records.findIndex(x=>x.id===r.id); r.updated_at=new Date().toISOString(); r.updated_by="demo"; this.act(r, i>=0?"ubah":"buat"); if(i>=0) this.db.records[i]=clone(r); else this.db.records.push(clone(r)); this.save(); return r; },
   async upsertRecords(rs){ for(const r of rs) await this.upsertRecord(r); },
-  async deleteRecord(id){ this.db.records=this.db.records.filter(r=>r.id!==id); this.save(); },
+  async deleteRecord(id){ const r=this.db.records.find(x=>x.id===id); if(r) this.act(r,"hapus"); this.db.records=this.db.records.filter(r=>r.id!==id); this.save(); },
   async listProfiles(){ return clone(this.db.profiles); },
   async setRole(){ },
   subscribe(){ return ()=>{}; }
@@ -72,6 +76,8 @@ const SupaStore = {
   async deleteRecord(id){ const { error } = await this.sb.from("records").delete().eq("id", id); if(error) throw error; },
   async listProfiles(){ const { data, error } = await this.sb.from("profiles").select("*").order("created_at"); if(error) throw error; return data; },
   async setRole(id, role){ const { error } = await this.sb.from("profiles").update({ role }).eq("id", id); if(error) throw error; },
+  async setName(id, name){ const { error } = await this.sb.from("profiles").update({ name }).eq("id", id); if(error) throw error; },
+  async listActivity(sid, from, to){ const { data, error } = await this.sb.from("activity").select("*").eq("season_id", sid).gte("at", from).lt("at", to).order("at", { ascending:false }).limit(500); if(error) throw error; return data; },
   subscribe(seasonId, onRecord, onOther){
     if(this.ch) this.sb.removeChannel(this.ch);
     this.ch = this.sb.channel("tis-"+seasonId)
@@ -86,7 +92,7 @@ const Store = DEMO ? LocalStore : SupaStore;
 
 /* ---------------- State aplikasi ---------------- */
 const A = { user:null, profile:null, seasons:[], season:null, cfg:null, comps:[], rec:{}, loading:true, online:true, profiles:[] };
-const ui = { ev:null, cid:null, rcid:null, gcid:null, detail:null, lostOnly:false, pev:null, pcid:null, pkind:"summary", jtab:null, set:"musim", openDesc:null, quiz:null, quizShow:false, edit:null, editKey:null };
+const ui = { ev:null, cid:null, rcid:null, gcid:null, detail:null, lostOnly:false, pev:null, pcid:null, pkind:"summary", jtab:null, logDate:null, actFor:null, set:"musim", openDesc:null, quiz:null, quizShow:false, edit:null, editKey:null };
 const saveState = {}, jBad = {};
 try{ Object.assign(ui, JSON.parse(localStorage.getItem("tis-ui")||"{}")); }catch(e){}
 function rememberUI(){ try{ localStorage.setItem("tis-ui", JSON.stringify({ ev:ui.ev, cid:ui.cid, rcid:ui.rcid, gcid:ui.gcid, pev:ui.pev, pcid:ui.pcid, pkind:ui.pkind, jtab:ui.jtab, set:ui.set })); }catch(e){} }
@@ -106,7 +112,7 @@ const addDays = (id,n) => { const d=dparts(id); d.setDate(d.getDate()+n); return
 const initials = n => (n||"?").split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]).join("").toUpperCase();
 function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.hidden=false; clearTimeout(toast._t); toast._t=setTimeout(()=>t.hidden=true, 3000); }
 const debounce = (fn,ms) => { let t; return (...a) => { clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; };
-function errMsg(e){ const m = e && (e.message || e.error_description || String(e)); if(/Invalid login/i.test(m)) return "E-mail atau kata sandi salah."; if(/Email not confirmed/i.test(m)) return "Akun belum dikonfirmasi. Minta admin mengonfirmasi di Supabase."; if(/row-level security|permission/i.test(m)) return "Akun Anda tidak punya izin untuk perubahan ini."; if(/Failed to fetch|NetworkError/i.test(m)) return "Tidak ada koneksi internet."; return m || "Terjadi kesalahan."; }
+function errMsg(e){ const m = e && (e.message || e.error_description || String(e)); if(/Invalid login/i.test(m)) return "E-mail atau kata sandi salah."; if(/Email not confirmed/i.test(m)) return "Akun belum dikonfirmasi. Minta admin mengonfirmasi di Supabase."; if(/row-level security|permission/i.test(m)) return "Akun Anda tidak punya izin untuk perubahan ini."; if(/records_kind_check|check constraint/i.test(m)) return "Database belum diperbarui. Admin perlu menjalankan update-log.sql di Supabase."; if(/Failed to fetch|NetworkError/i.test(m)) return "Tidak ada koneksi internet."; return m || "Terjadi kesalahan."; }
 
 /* ---------------- Akses data musim ---------------- */
 const compColor = c => COLORS[(A.comps.indexOf(c) % COLORS.length + COLORS.length) % COLORS.length];

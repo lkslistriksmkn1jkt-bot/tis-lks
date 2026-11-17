@@ -23,7 +23,7 @@ function loginView(err){
 }
 
 /* ---------- Kerangka ---------- */
-const NAV = [["beranda","Beranda"],["jadwal","Jadwal"],["scheme","Marking Scheme"],["penilaian","Assessment",()=>canWrite()],["hasil","Results"],["gate","Gate Test"],["laporan","Reports"],["jurnal","Jurnal"],["peserta","Peserta"],["pengaturan","Pengaturan",()=>isAdmin()],["profil","Profil"]];
+const NAV = [["beranda","Beranda"],["jadwal","Jadwal"],["scheme","Marking Scheme"],["penilaian","Assessment",()=>canWrite()],["hasil","Results"],["gate","Gate Test"],["laporan","Reports"],["jurnal","Jurnal"],["log","Log Harian"],["peserta","Peserta"],["pengaturan","Pengaturan",()=>isAdmin()],["profil","Profil"]];
 function shell(inner, r){
   const roleName = { admin:"Admin", juri:"Juri", viewer:"Pengamat" }[role()];
   const seasonOpts = A.seasons.map(s=>`<option value="${s.id}" ${s.id===A.season?.id?"selected":""}>${esc(s.name)}${s.active?" (aktif)":""}</option>`).join("");
@@ -231,6 +231,57 @@ V.jurnal = () => {
   <div class="grid g2"><label class="f">Sudah bisa<textarea id="jBisa"></textarea></label><label class="f">Belum bisa<textarea id="jBelum"></textarea></label></div>
   <div><button class="btn primary" type="submit">Simpan catatan</button></div></form>`:""}
   <div class="panel">${items}</div>`;
+};
+
+/* ---------- Log harian asisten ---------- */
+const pname = id => { const p=(A.profiles||[]).find(x=>x.id===id); return p?.name || p?.email || (id===A.user?.id ? (A.profile?.name||A.user?.email) : "") || "Pengguna"; };
+const logsOn = date => Object.values(A.rec).filter(r=>r.kind==="log"&&r.data?.date===date).map(r=>({ id:r.id, ...r.data })).sort((a,b)=>(a.start||"").localeCompare(b.start||""));
+const SESUAI = { ya:["Sesuai jadwal","good"], sebagian:["Sebagian sesuai","warn"], ganti:["Diganti materi lain","bad"] };
+function actText(a){
+  const ev=evById(a.ref)?.name||a.ref, c=a.competitor_id?" · "+cname(a.competitor_id):"", del=a.action==="hapus";
+  if(a.kind==="mark") return (del?"Menghapus nilai ":"Mengisi nilai ")+ev+c+(a.n>1?` (${a.n}× simpan)`:"");
+  if(a.kind==="lock") return "Mengunci / membuka nilai "+ev;
+  if(a.kind==="done"){ const it=sched().find(s=>s.id===a.ref); return "Mencentang jadwal "+(it?(it.kind==="weekend"?"tugas mandiri "+rangeLabel(it.date,it.end):dlabel(it.date)+" ("+it.label+")"):a.ref)+c; }
+  if(a.kind==="gate") return "Memperbarui gate test"+c;
+  if(a.kind==="journal") return (del?"Menghapus jurnal":"Menulis jurnal latihan")+c;
+  if(a.kind==="log") return del?"Menghapus log harian":"Menulis log harian";
+  return a.kind+" "+a.ref;
+}
+const hhmm = iso => { const d=new Date(iso); return String(d.getHours()).padStart(2,"0")+"."+String(d.getMinutes()).padStart(2,"0"); };
+V.log = () => {
+  const d=ui.logDate||todayId(); const key=A.season.id+"|"+d;
+  if(ui.actFor!==key) loadAct(d);
+  const it=sched().filter(s=>s.date&&d>=s.date&&d<=(s.end||s.date));
+  const mine=canWrite()?(R("log",d+"~"+A.user.id)||{}):null;
+  const logs=logsOn(d);
+  const jadwal=it.length?it.map(s=>`<div><div class="label">${esc(s.tab)} · ${esc(s.group)} · ${esc(s.label)}</div><p>${esc(s.title).replace(/\n/g,"<br>")}</p><p class="muted" style="font-size:13px">Target: ${esc(s.target)}</p></div>`).join(""):'<p class="muted">Tidak ada jadwal latihan pada tanggal ini.</p>';
+  const form=mine?`<form class="panel" id="logForm"><div class="spread"><div class="label">Log saya · ${esc(A.profile?.name||A.user?.email||"")}</div>${mine.at?`<span class="chip good">tersimpan ${hhmm(new Date(mine.at).toISOString())}</span>`:'<span class="chip warn">belum diisi</span>'}</div>
+    <div class="grid g3"><label class="f">Jam mulai<input type="time" id="lgStart" value="${esc(mine.start||"")}"></label><label class="f">Jam selesai<input type="time" id="lgEnd" value="${esc(mine.end||"")}"></label>
+    <label class="f">Kesesuaian dengan jadwal<select id="lgSesuai">${Object.entries(SESUAI).map(([k,v])=>`<option value="${k}" ${(mine.sesuai||"ya")===k?"selected":""}>${v[0]}</option>`).join("")}</select></label></div>
+    <div class="f"><span>Peserta hadir</span><div class="row">${A.comps.map(c=>`<label class="row" style="gap:6px"><input type="checkbox" data-hadir="${c.id}" ${(mine.hadir||A.comps.map(x=>x.id)).includes(c.id)?"checked":""}>${esc(c.name)}</label>`).join("")}</div></div>
+    <label class="f">Kegiatan yang dilakukan hari ini<textarea id="lgKeg" rows="4" placeholder="Contoh: Demo mitre 45°, siswa drill 10 sambungan, ukur gap tiap sambungan">${esc(mine.kegiatan||"")}</textarea></label>
+    <div class="grid g2"><label class="f">Capaian siswa<textarea id="lgCap" rows="3" placeholder="Siapa sudah bisa apa, angka penting (gap, deviasi, waktu)">${esc(mine.capaian||"")}</textarea></label>
+    <label class="f">Kendala & tindak lanjut<textarea id="lgKen" rows="3">${esc(mine.kendala||"")}</textarea></label></div>
+    <label class="f">Alat / bahan (dipakai, habis, rusak)<input type="text" id="lgBahan" value="${esc(mine.bahan||"")}"></label>
+    <div><button class="btn primary" type="submit">Simpan log</button></div></form>`:"";
+  const cards=logs.length?logs.map(l=>{ const s=SESUAI[l.sesuai]||SESUAI.ya;
+    return `<div class="entry" style="border-left-color:var(--accent)"><div class="spread"><b>${esc(pname(l.by)||l.name)}${l.start?` · ${esc(l.start)}–${esc(l.end||"?")}`:""}</b>${isAdmin()||l.by===A.user?.id?`<button class="btn sm" data-dellog="${esc(l.id)}">Hapus</button>`:""}</div>
+    <div class="row"><span class="chip ${s[1]}">${s[0]}</span>${(l.hadir||[]).length<A.comps.length?A.comps.map(c=>`<span class="chip ${(l.hadir||[]).includes(c.id)?"good":"bad"}">${esc(c.name)} ${(l.hadir||[]).includes(c.id)?"hadir":"tidak hadir"}</span>`).join(""):'<span class="chip good">semua peserta hadir</span>'}</div>
+    <p><span class="label">Kegiatan</span><br>${esc(l.kegiatan).replace(/\n/g,"<br>")}</p>${l.capaian?`<p><span class="label">Capaian siswa</span><br>${esc(l.capaian).replace(/\n/g,"<br>")}</p>`:""}${l.kendala?`<p><span class="label">Kendala & tindak lanjut</span><br>${esc(l.kendala).replace(/\n/g,"<br>")}</p>`:""}${l.bahan?`<p><span class="label">Alat / bahan</span><br>${esc(l.bahan)}</p>`:""}</div>`; }).join(""):'<div class="empty">Belum ada log untuk tanggal ini.</div>';
+  let act;
+  if(A.actErr) act=`<div class="warnbox">${isAdmin()?"Aktivitas otomatis belum aktif. Jalankan berkas <b>update-log.sql</b> sekali di Supabase (SQL Editor).":"Aktivitas otomatis belum aktif. Minta admin memperbarui database."}</div>`;
+  else if(ui.actFor!==key||!A.act) act='<p class="muted">Memuat…</p>';
+  else act=A.act.length?`<div class="tbl-wrap"><table><thead><tr><th>Jam</th><th>Oleh</th><th>Kegiatan di aplikasi</th></tr></thead><tbody>${A.act.map(a=>`<tr><td class="num">${hhmm(a.at)}</td><td>${esc(pname(a.user_id))}</td><td>${esc(actText(a))}</td></tr>`).join("")}</tbody></table></div>`:'<p class="muted">Tidak ada aktivitas di aplikasi pada tanggal ini.</p>';
+  const staff=(A.profiles||[]).filter(p=>p.role==="juri"||p.role==="admin");
+  const days=[...new Set(sched().filter(s=>s.kind==="day"&&s.date<=todayId()).map(s=>s.date))].sort().reverse().slice(0,10);
+  const rekap=staff.length&&days.length?`<div class="panel"><div class="label">Rekap pengisian log · 10 hari latihan terakhir</div><div class="tbl-wrap"><table><thead><tr><th>Tanggal</th>${staff.map(p=>`<th>${esc(p.name||p.email)}</th>`).join("")}</tr></thead><tbody>${days.map(x=>`<tr><td><a href="#log" data-logto="${x}">${dlabel(x)}</a></td>${staff.map(p=>{ const l=R("log",x+"~"+p.id); return `<td>${l?`<span class="chip good">✓ ${esc(l.start||"")}${l.end?"–"+esc(l.end):""}</span>`:'<span class="chip">–</span>'}</td>`; }).join("")}</tr>`).join("")}</tbody></table></div></div>`:"";
+  return `<div><h2>Log harian</h2><p class="lead">Laporan kegiatan asisten setiap hari latihan, ditambah catatan otomatis semua yang diisi di aplikasi.</p></div>
+  <div class="row no-print"><button class="btn sm" data-logday="-1">‹ Sebelumnya</button><input type="date" id="logDate" value="${d}" style="width:auto"><button class="btn sm" data-logday="1">Berikutnya ›</button>${d!==todayId()?'<button class="btn sm" data-logday="0">Hari ini</button>':""}</div>
+  <div class="panel"><div class="label">${dlabel(d,true)} ${d.slice(0,4)} · jadwal</div>${jadwal}</div>
+  ${form}
+  <div class="panel"><div class="label">Log asisten</div>${cards}</div>
+  <div class="panel"><div class="spread"><div class="label">Aktivitas di aplikasi (otomatis)</div><button class="btn sm" id="actReload">Muat ulang</button></div>${act}</div>
+  ${rekap}`;
 };
 
 /* ---------- Peserta ---------- */
