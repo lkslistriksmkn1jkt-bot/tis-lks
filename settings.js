@@ -72,7 +72,7 @@ V.pengaturan = () => {
       <div><button class="btn primary" id="xlExport">Unduh Excel (.xlsx)</button></div>
       <p class="note">Tanggal ditulis 2026-11-19 atau 19/11/2026. Kolom ID boleh dikosongkan untuk baris baru. Jangan ubah ID TO dan ID aspek yang sudah dinilai.</p></div>
     <div class="panel"><div class="label">2 · Impor Excel yang sudah diedit</div>
-      <input type="file" id="xlFile" accept=".xlsx,.xls,.csv">
+      <label class="btn" style="display:inline-block">📂 Pilih berkas Excel<input type="file" id="xlFile" data-keepfile="xl" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" style="display:none"></label> <span class="note">${ui.files&&ui.files.xl?"Dipilih: <b>"+esc(ui.files.xl.name)+"</b>":"Belum ada berkas dipilih"}</span>
       <div><button class="btn" id="xlRead">Baca berkas</button></div>
       ${X?`<div class="tbl-wrap rwrap"><table class="rtbl"><thead><tr><th>Terapkan</th><th>Sheet</th><th class="n">Baris</th><th>Hasil pemeriksaan</th></tr></thead><tbody>${Object.keys(names).filter(k=>X[k]).map(k=>{const r=X[k];return `<tr><td data-l="Terapkan"><label class="tick"><input type="checkbox" data-xlsheet="${k}" ${r.apply?"checked":""} ${r.errors.length?"disabled":""}>${r.errors.length?"Tidak bisa":"Ya"}</label></td><td data-l="Sheet"><b>${names[k]}</b></td><td class="n" data-l="Baris">${r.rows.length}</td><td data-l="Hasil pemeriksaan">${r.errors.length?`<div class="err">${r.errors.slice(0,8).map(esc).join("<br>")}${r.errors.length>8?"<br>… dan "+(r.errors.length-8)+" lainnya":""}</div>`:'<span class="chip good">Siap</span>'}${r.warns.length?`<div class="note">${r.warns.slice(0,6).map(esc).join("<br>")}</div>`:""}</td></tr>`;}).join("")}</tbody></table></div>
       <p class="note">Sheet yang dicentang akan <b>menggantikan seluruh</b> bagian yang sama di musim ini. Sheet yang tidak dicentang tidak diubah. Nilai, centang jadwal, dan jurnal yang sudah ada tetap tersimpan.</p>
@@ -99,7 +99,7 @@ V.pengaturan = () => {
   }
   else if(ui.set==="backup"){
     body=`<div class="panel"><div class="label">Unduh cadangan musim ini</div><p class="note">Berkas JSON berisi pengaturan musim, peserta, nilai, centang jadwal, gate, dan jurnal. Simpan di Google Drive setiap bulan.</p><div><button class="btn primary" id="bkExport">Unduh cadangan (.json)</button></div></div>
-    <div class="panel"><div class="label">Pulihkan dari cadangan</div><p class="note">Cadangan dipulihkan sebagai <b>musim baru</b>, sehingga data yang ada tidak tertimpa.</p><input type="file" id="bkFile" accept=".json,application/json"><div><button class="btn" id="bkImport">Pulihkan</button></div></div>`;
+    <div class="panel"><div class="label">Pulihkan dari cadangan</div><p class="note">Cadangan dipulihkan sebagai <b>musim baru</b>, sehingga data yang ada tidak tertimpa.</p><label class="btn" style="display:inline-block">📂 Pilih berkas cadangan<input type="file" id="bkFile" data-keepfile="bk" accept=".json,application/json" style="display:none"></label> <span class="note">${ui.files&&ui.files.bk?"Dipilih: <b>"+esc(ui.files.bk.name)+"</b>":"Belum ada berkas dipilih"}</span><div><button class="btn" id="bkImport">Pulihkan</button></div></div>`;
   }
   return `<div class="spread no-print"><div><h2>Pengaturan</h2><p class="lead">Khusus admin. Perubahan berlaku untuk musim <b>${esc(A.season.name)}</b>.</p></div></div>
   <div class="subnav no-print">${SETS.map(s=>`<button type="button" data-set="${s[0]}" aria-pressed="${ui.set===s[0]}">${s[1]}</button>`).join("")}</div>${body}`;
@@ -127,7 +127,7 @@ function exportBackup(){
   a.href=URL.createObjectURL(blob); a.download="TIS-backup-"+A.season.name.replace(/[^\w-]+/g,"_")+"-"+todayId()+".json"; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();},1000);
 }
 async function importBackup(){
-  const f=document.getElementById("bkFile").files[0]; if(!f){ toast("Pilih berkas cadangan dulu."); return; }
+  const f=(ui.files&&ui.files.bk)||document.getElementById("bkFile")?.files[0]; if(!f){ toast("Pilih berkas cadangan dulu."); return; }
   let d; try{ d=JSON.parse(await f.text()); }catch(e){ toast("Berkas bukan JSON yang valid."); return; }
   if(!d.season||!d.season.config){ toast("Berkas ini bukan cadangan TIS."); return; }
   const sid=uid(); const map={};
@@ -184,7 +184,7 @@ function sheetRows(wb, name){
   return rows.map(r=>{ const o={}; Object.keys(r).forEach(k=>o[k.trim().toLowerCase()]=typeof r[k]==="string"?r[k].replace(/\r/g,"").trim():r[k]); return o; }).filter(o=>Object.values(o).some(v=>v!==""&&v!=null));
 }
 async function readExcel(){
-  const f=document.getElementById("xlFile").files[0]; if(!f){ toast("Pilih berkas Excel dulu."); return; }
+  const f=(ui.files&&ui.files.xl)||document.getElementById("xlFile")?.files[0]; if(!f){ toast("Pilih berkas Excel dulu."); return; }
   try{ await loadXLSX(); }catch(e){ toast(e.message); return; }
   let wb; try{ wb=XLSX.read(await f.arrayBuffer(),{type:"array"}); }catch(e){ toast("Berkas tidak bisa dibaca sebagai Excel."); return; }
   const X={};

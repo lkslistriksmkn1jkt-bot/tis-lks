@@ -14,7 +14,9 @@ function render(){
   let r=route(); if(r==="penilaian"&&!canWrite()) r="hasil"; if(r==="pengaturan"&&!isAdmin()) r="beranda";
   const a=document.activeElement; const keep=a&&a.id&&(a.tagName==="INPUT"||a.tagName==="TEXTAREA"||a.tagName==="SELECT")?{id:a.id,s:a.selectionStart,e:a.selectionEnd}:null;
   const keepE=a&&a.dataset&&a.dataset.e?a.dataset.e:null; const sx=window.scrollX, sy=window.scrollY;
+  const oldFiles=[...root.querySelectorAll("input[data-keepfile]")];
   root.innerHTML=shell(V[r](), r);
+  oldFiles.forEach(o=>{ const n=root.querySelector(`input[data-keepfile="${o.dataset.keepfile}"]`); if(n) n.replaceWith(o); });
   if(keep){ const el=document.getElementById(keep.id); if(el){ el.focus({preventScroll:true}); try{ el.setSelectionRange(keep.s,keep.e); }catch(e){} } }
   else if(keepE){ const el=document.querySelector(`[data-e="${keepE}"]`); if(el) el.focus({preventScroll:true}); }
   window.scrollTo(sx,sy);
@@ -49,7 +51,7 @@ async function boot(){
   if(!DEMO){ Store.sb.auth.onAuthStateChange((ev)=>{ if(ev==="SIGNED_OUT"){ A.user=null; A.profile=null; A.season=null; if(unsub) unsub(); render(); } }); }
   window.addEventListener("online", ()=>{ A.online=true; if(A.season) reloadSeason(); });
   window.addEventListener("offline", ()=>{ A.online=false; render(); });
-  document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible"&&A.season&&!DEMO) reloadSeason(); });
+  document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible"&&A.season&&!DEMO&&!(ui.picking&&Date.now()-ui.picking<120000)) reloadSeason(); });
 }
 window.addEventListener("hashchange", ()=>{ if(route()==="log") ui.actFor=null; render(); window.scrollTo(0,0); });
 
@@ -133,6 +135,7 @@ document.addEventListener("keydown", e=>{
 });
 
 /* ---------------- Event: click ---------------- */
+document.addEventListener("click", e=>{ const el=e.target; if(el&&el.closest&&(el.matches("input[data-keepfile]")||el.closest("label")?.querySelector("input[data-keepfile]"))) ui.picking=Date.now(); }, true);
 document.addEventListener("click", async e=>{
   const t=e.target.closest("button,a"); if(!t) return;
   if(t.id==="signOut"){ e.preventDefault(); await Store.signOut(); A.user=null; A.season=null; if(unsub) unsub(); render(); return; }
@@ -215,6 +218,7 @@ document.addEventListener("change", async e=>{
   /* pengaturan: perubahan struktur */
   if(t.dataset.e && t.tagName==="SELECT"){ setPath(ui.edit,t.dataset.e,t.value); ui.dirty=true; if(/\.t$|\.kind$/.test(t.dataset.e)) render(); return; }
   if(t.dataset.scope!==undefined){ const ev=ui.edit.events[+t.dataset.scope]; ev.scope=ev.scope||[]; const c=isNaN(+t.dataset.crit)?t.dataset.crit:+t.dataset.crit; ev.scope=ev.scope.filter(x=>String(x)!==String(c)); if(t.checked) ev.scope.push(c); ev.scope.sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true})); ui.dirty=true; return; }
+  if(t.dataset.keepfile){ ui.files=ui.files||{}; ui.files[t.dataset.keepfile]=t.files[0]||null; ui.picking=0; if(t.dataset.keepfile==="xl"&&t.files[0]){ await readExcel(); } else render(); return; }
   if(t.dataset.xlsheet){ ui.xl[t.dataset.xlsheet].apply=t.checked; return; }
   if(t.dataset.selfull){ const s=ui.edit.selection; s.full=(s.full||[]).filter(x=>x!==t.dataset.selfull); if(t.checked) s.full.push(t.dataset.selfull); ui.dirty=true; return; }
 });
