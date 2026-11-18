@@ -182,6 +182,9 @@ document.addEventListener("click", async e=>{
   if(t.dataset.delphoto){ if(!confirm("Hapus foto ini?")) return; try{ await Store.deletePhoto(t.dataset.path).catch(()=>{}); await Store.deleteRecord(t.dataset.delphoto); delete A.rec[t.dataset.delphoto]; render(); toast("Foto dihapus."); }catch(err){ toast(errMsg(err)); } return; }
   if(t.dataset.istg!==undefined){ ui.istG=t.dataset.istg; render(); return; }
   if(t.id==="istPrint"){ window.print(); return; }
+  if(t.dataset.jedit){ ui.jEdit=t.dataset.jedit; render(); document.getElementById("jForm")?.scrollIntoView({behavior:"smooth"}); return; }
+  if(t.id==="jCancel"){ ui.jEdit=null; render(); return; }
+  if(t.dataset.jday!==undefined){ const k=+t.dataset.jday; ui.jDay=k===0?todayId():addDays(ui.jDay||todayId(),k); render(); return; }
   if(t.id==="waCopy"){ const txt=waText(ui.pev,ui.pcid); if(!txt){ toast("Belum ada nilai untuk dilaporkan."); return; } try{ await navigator.clipboard.writeText(txt); toast("Ringkasan disalin. Tempel di WhatsApp."); }catch(e){ const ta=document.createElement("textarea"); ta.value=txt; document.body.appendChild(ta); ta.select(); try{ document.execCommand("copy"); toast("Ringkasan disalin. Tempel di WhatsApp."); }catch(_){ toast("Tidak bisa menyalin otomatis."); } ta.remove(); } return; }
   if(t.id==="printBtn"){ window.print(); return; }
   if(t.id==="lockBtn"){ const cur=!!R("lock",ui.ev)?.locked; await saveRec("lock", ui.ev, null, { locked:!cur, by:A.profile?.name||"", at:Date.now() }); toast(!cur?"Nilai dikunci.":"Kunci dibuka."); return; }
@@ -226,6 +229,9 @@ document.addEventListener("click", async e=>{
 document.addEventListener("change", async e=>{
   const t=e.target;
   if(t.id==="seasonSel"){ await openSeason(t.value); return; }
+  if(t.id==="jDay"){ if(t.value){ ui.jDay=t.value; render(); } return; }
+  if(t.id==="jCidF"){ ui.jCidF=t.value; render(); return; }
+  if(t.id==="jAll"){ ui.jAll=t.checked; render(); return; }
   if(t.id==="jxFrom"||t.id==="jxTo"||t.id==="jxCid"){ ui[t.id]=t.value; return; }
   if(t.id==="logFrom"||t.id==="logTo"){ ui[t.id]=t.value; return; }
   if(t.id==="logDate"){ if(t.value) setLogDate(t.value); return; }
@@ -276,10 +282,16 @@ document.addEventListener("submit", async e=>{
     if(!data.kegiatan){ toast("Isi dulu kegiatan yang dilakukan."); return; }
     if(await saveRec("log", d+"~"+A.user.id, null, data)){ toast("Log disimpan."); refreshAct(); } return; }
   if(f.id==="jForm"){ const g=id=>document.getElementById(id).value.trim();
-    const data={ date:g("jDate")||todayId(), drill:g("jDrill"), waktu:g("jWaktu"), plan:g("jPlan"), dev:g("jDev"), cacat:g("jCacat"), bahan:g("jBahan"), kondisi:g("jKondisi"), tidur:g("jTidur"), bisa:g("jBisa"), belum:g("jBelum"), at:Date.now(), by:A.profile?.name||"" };
+    const ed=ui.jEdit?A.rec[ui.jEdit]:null;
+    const data={ date:g("jDate")||todayId(), drill:g("jDrill"), waktu:g("jWaktu"), plan:g("jPlan"), dev:g("jDev"), cacat:g("jCacat"), bahan:g("jBahan"), kondisi:g("jKondisi"), tidur:g("jTidur"), bisa:g("jBisa"), belum:g("jBelum") };
     if(!data.drill&&!data.bisa&&!data.belum&&!data.waktu){ toast("Isi minimal drill, waktu, atau catatan."); return; }
-    const cid=g("jCid"); const ref="j"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-    if(await saveRec("journal", ref, cid, data)){ toast("Catatan disimpan."); } return; }
+    const cid=g("jCid"); const me=A.profile?.name||A.user?.email||"";
+    if(ed){ Object.assign(data,{ at:ed.data.at||Date.now(), by:ed.data.by||me, byId:ed.data.byId||A.user.id, edited:Date.now(), editedBy:me });
+      if(ed.competitor_id!==cid){ try{ await Store.deleteRecord(ed.id); delete A.rec[ed.id]; }catch(e){ toast(errMsg(e)); return; } }
+      if(await saveRec("journal", ed.ref, cid, data)){ ui.jEdit=null; ui.jDay=data.date; ui.jAll=false; toast("Perubahan disimpan."); render(); } return; }
+    Object.assign(data,{ at:Date.now(), by:me, byId:A.user.id });
+    const ref="j"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+    if(await saveRec("journal", ref, cid, data)){ ui.jDay=data.date; ui.jAll=false; toast("Catatan disimpan."); render(); } return; }
 });
 
 window.addEventListener("beforeunload", e=>{ if(ui.dirty){ e.preventDefault(); e.returnValue=""; } });
