@@ -243,3 +243,50 @@ a.btn{text-decoration:none;display:inline-block}
 
 .focus-ta{min-width:300px;min-height:84px;font-size:15px;line-height:1.45}
 @media (max-width:760px){.rtbl textarea.focus-ta{min-height:110px}}
+
+/* ---------- Lembar laporan (Reports) ---------- */
+.paper{background:#fff;color:#111;font-family:var(--f-body,"IBM Plex Sans",Arial,sans-serif);font-size:12px;line-height:1.4;padding:18mm 15mm;max-width:210mm;margin:0 auto}
+.paper b{color:#000}
+.r-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;border-bottom:2px solid #111;padding-bottom:6px;margin-bottom:8px}
+.r-small{font-size:10px;color:#444;letter-spacing:.04em;text-transform:uppercase}
+.r-title{font-family:var(--f-display,"Barlow Condensed",Arial,sans-serif);font-size:22px;font-weight:700;letter-spacing:.04em;text-align:right}
+.r-meta{width:100%;border-collapse:collapse;margin-bottom:10px;font-size:11.5px}
+.r-meta td{padding:2px 6px;border-bottom:1px solid #ddd;vertical-align:top}
+.r-meta td:first-child{width:110px;color:#555}
+.r-tbl{width:100%;border-collapse:collapse;margin:8px 0;font-size:11px;page-break-inside:auto}
+.r-tbl th,.r-tbl td{border:1px solid #999;padding:3px 5px;vertical-align:top;text-align:left}
+.r-tbl th{background:#E9EEF4;font-weight:600}
+.r-tbl tr{page-break-inside:avoid}
+.r-n{text-align:right!important;font-family:var(--f-mono,"IBM Plex Mono",monospace);white-space:nowrap}
+.r-tot td{font-weight:700;background:#F4F6F8}
+.r-sign{display:flex;gap:24px;justify-content:space-between;margin-top:26px;font-size:11px;text-align:center}
+.r-sign>div{flex:1}
+.r-line{border-bottom:1px solid #111;height:44px;margin-bottom:4px}
+.r-foot{margin-top:14px;font-size:9px;color:#777;text-align:right}
+.r-score{display:flex;gap:14px;align-items:center;flex-wrap:wrap;border:1px solid #999;border-radius:4px;padding:8px 10px;margin:6px 0 10px}
+.r-big{font-family:var(--f-mono,"IBM Plex Mono",monospace);font-size:30px;font-weight:700;line-height:1}
+.r-kv{font-size:11px;color:#333}
+.r-sec{margin-top:12px;page-break-inside:avoid}
+.r-sec h4{margin:0 0 4px;font-size:13px;display:flex;justify-content:space-between;border-bottom:1px solid #111;padding-bottom:2px}
+.r-barw{height:6px;background:#E3E7EC;border-radius:3px;overflow:hidden;margin:3px 0 6px}
+.r-barw i{display:block;height:100%;background:#1D5FC4}
+.r-note{background:#F7F7F2;border-left:3px solid #B08A00;padding:5px 8px;margin:6px 0;font-size:11px;white-space:pre-wrap}
+.r-ph{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:6px 0}
+.r-ph figure{margin:0;page-break-inside:avoid}
+.r-ph img{width:100%;height:62mm;object-fit:cover;border:1px solid #999;display:block}
+.r-ph figcaption{font-size:9px;color:#555;margin-top:2px}
+.r-list{margin:4px 0;padding-left:18px;font-size:11px}
+
+/* ---------- Foto di Assessment ---------- */
+.crit-x{padding:10px 14px 14px;border-top:1px dashed var(--line);display:flex;flex-direction:column;gap:10px}
+.ph-grid{display:flex;flex-wrap:wrap;gap:8px}
+.ph{position:relative;width:96px;height:96px;border-radius:6px;overflow:hidden;border:1px solid var(--line);background:var(--sunk)}
+.ph img{width:100%;height:100%;object-fit:cover;display:block}
+.ph-ph{display:grid;place-items:center;height:100%;color:var(--muted);font-family:var(--f-mono)}
+.ph-del{position:absolute;top:3px;right:3px;width:26px;height:26px;border-radius:50%;border:none;background:rgba(0,0,0,.6);color:#fff;font-size:13px;cursor:pointer}
+.ph-add{width:96px;height:96px;border:2px dashed var(--line);border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-size:24px;color:var(--muted)}
+.ph-add span{font-size:11px;font-family:var(--f-mono)}
+@media print{
+  .paper{padding:0;max-width:none;font-size:11px}
+  .r-ph img{height:58mm}
+}

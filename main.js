@@ -55,6 +55,29 @@ async function boot(){
 }
 window.addEventListener("hashchange", ()=>{ if(route()==="log") ui.actFor=null; render(); window.scrollTo(0,0); });
 
+/* ---------------- Foto TO ---------------- */
+A.purl={}; const purlPending=new Set();
+function photoUrl(path){ if(A.purl[path]) return A.purl[path]; purlPending.add(path); queueUrls(); return ""; }
+const queueUrls=debounce(async()=>{ const ps=[...purlPending]; purlPending.clear(); if(!ps.length) return; let got={}; try{ got=await Store.photoUrls(ps); }catch(e){} ps.forEach(p=>{ A.purl[p]=got[p]||"err"; }); render(); },60);
+async function compressImg(file){
+  let src,w,h; try{ src=await createImageBitmap(file); w=src.width; h=src.height; }catch(e){ src=await new Promise((ok,no)=>{ const i=new Image(); i.onload=()=>ok(i); i.onerror=()=>no(new Error("Format foto tidak didukung")); i.src=URL.createObjectURL(file); }); w=src.naturalWidth; h=src.naturalHeight; }
+  const M=DEMO?900:1600, k=Math.min(1,M/Math.max(w,h)); const cv=document.createElement("canvas"); cv.width=Math.round(w*k); cv.height=Math.round(h*k); cv.getContext("2d").drawImage(src,0,0,cv.width,cv.height);
+  return await new Promise(ok=>cv.toBlob(ok,"image/jpeg",DEMO?0.7:0.82));
+}
+async function uploadPhotos(eid,cid,crit,files){
+  if(!canWrite()){ toast("Akun Anda hanya bisa melihat."); return; }
+  if(!files.length) return; ui.upl=(ui.upl||0)+files.length; render(); let ok=0;
+  for(const f of files){
+    try{ const blob=await compressImg(f); const id=uid(); const path=`${A.season.id}/${eid}/${cid}/${id}.jpg`;
+      await Store.uploadPhoto(path,blob); A.purl[path]=URL.createObjectURL(blob);
+      if(await saveRec("photo", eid+"~"+crit+"~"+id, cid, { eid, crit:String(crit), path, by:A.user.id, name:A.profile?.name||A.user?.email||"", at:Date.now() })) ok++;
+    }catch(e){ toast("Foto gagal diunggah: "+errMsg(e)); }
+    ui.upl=Math.max(0,(ui.upl||1)-1); render();
+  }
+  if(ok) toast(ok+" foto tersimpan.");
+}
+const saveCNote = debounce((ev,cid,crit,v)=>saveMark(ev,cid,"cn"+crit,d=>{ d.cnotes=Object.assign({},d.cnotes||{}, {[crit]:v}); }), 800);
+
 /* ---------------- Log harian ---------------- */
 async function loadAct(d){
   const key=A.season.id+"|"+d; ui.actFor=key; A.act=null; A.actErr=null;
@@ -156,6 +179,8 @@ document.addEventListener("click", async e=>{
   if(t.dataset.rcid){ ui.rcid=t.dataset.rcid; rememberUI(); render(); return; }
   if(t.dataset.gcid){ ui.gcid=t.dataset.gcid; rememberUI(); render(); return; }
   if(t.dataset.detail){ ui.detail=ui.detail===t.dataset.detail?null:t.dataset.detail; render(); return; }
+  if(t.dataset.delphoto){ if(!confirm("Hapus foto ini?")) return; try{ await Store.deletePhoto(t.dataset.path).catch(()=>{}); await Store.deleteRecord(t.dataset.delphoto); delete A.rec[t.dataset.delphoto]; render(); toast("Foto dihapus."); }catch(err){ toast(errMsg(err)); } return; }
+  if(t.id==="waCopy"){ const txt=waText(ui.pev,ui.pcid); if(!txt){ toast("Belum ada nilai untuk dilaporkan."); return; } try{ await navigator.clipboard.writeText(txt); toast("Ringkasan disalin. Tempel di WhatsApp."); }catch(e){ const ta=document.createElement("textarea"); ta.value=txt; document.body.appendChild(ta); ta.select(); try{ document.execCommand("copy"); toast("Ringkasan disalin. Tempel di WhatsApp."); }catch(_){ toast("Tidak bisa menyalin otomatis."); } ta.remove(); } return; }
   if(t.id==="printBtn"){ window.print(); return; }
   if(t.id==="lockBtn"){ const cur=!!R("lock",ui.ev)?.locked; await saveRec("lock", ui.ev, null, { locked:!cur, by:A.profile?.name||"", at:Date.now() }); toast(!cur?"Nilai dikunci.":"Kunci dibuka."); return; }
   if(t.dataset.noteItem){ const id=t.dataset.noteItem; for(const c of A.comps){ const d=clone(R("done",id,c.id)||{}); const v=prompt("Catatan untuk "+c.name+" (kosongkan untuk menghapus):", d.note||""); if(v===null) return; if((d.note||"")!==v){ d.note=v; await saveRec("done", id, c.id, d); } } return; }
@@ -218,6 +243,7 @@ document.addEventListener("change", async e=>{
   /* pengaturan: perubahan struktur */
   if(t.dataset.e && t.tagName==="SELECT"){ setPath(ui.edit,t.dataset.e,t.value); ui.dirty=true; if(/\.t$|\.kind$/.test(t.dataset.e)) render(); return; }
   if(t.dataset.scope!==undefined){ const ev=ui.edit.events[+t.dataset.scope]; ev.scope=ev.scope||[]; const c=isNaN(+t.dataset.crit)?t.dataset.crit:+t.dataset.crit; ev.scope=ev.scope.filter(x=>String(x)!==String(c)); if(t.checked) ev.scope.push(c); ev.scope.sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true})); ui.dirty=true; return; }
+  if(t.dataset.keepfile&&t.dataset.keepfile.startsWith("ph:")){ const files=[...t.files]; t.value=""; ui.picking=0; await uploadPhotos(ui.ev,ui.cid,t.dataset.keepfile.slice(3),files); return; }
   if(t.dataset.keepfile){ ui.files=ui.files||{}; ui.files[t.dataset.keepfile]=t.files[0]||null; ui.picking=0; if(t.dataset.keepfile==="xl"&&t.files[0]){ await readExcel(); } else render(); return; }
   if(t.dataset.xlsheet){ ui.xl[t.dataset.xlsheet].apply=t.checked; return; }
   if(t.dataset.selfull){ const s=ui.edit.selection; s.full=(s.full||[]).filter(x=>x!==t.dataset.selfull); if(t.checked) s.full.push(t.dataset.selfull); ui.dirty=true; return; }
@@ -228,6 +254,7 @@ document.addEventListener("input", e=>{
   const t=e.target;
   if(t.dataset.kind==="M"){ const c=t.value.toUpperCase(); t.classList.toggle("y",c==="Y"||c==="1"); t.classList.toggle("n",c==="N"||c==="0"); }
   if(t.id==="evNote") saveNote(ui.ev,ui.cid,t.value);
+  if(t.dataset.cnote!==undefined) saveCNote(ui.ev,ui.cid,t.dataset.cnote,t.value);
   if(t.dataset.e && t.tagName!=="SELECT"){ setPath(ui.edit,t.dataset.e,t.type==="number"?(t.value===""?"":+t.value):t.value); ui.dirty=true; }
   if(t.dataset.lines){ setPath(ui.edit,t.dataset.lines,t.value.split("\n").map(x=>x.trim()).filter(Boolean)); ui.dirty=true; }
   if(t.dataset.angka){ ui.edit.angka=t.value.split("\n").map(l=>l.split("|").map(x=>x.trim())).filter(a=>a[0]).map(a=>[a[0],a.slice(1).join(" | ")]); ui.dirty=true; }

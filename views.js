@@ -105,6 +105,7 @@ V.penilaian = () => {
   if(!evById(ui.ev)) ui.ev = (events().find(e=>e.date>=todayId())||events()[0]).id; if(!compById(ui.cid)) ui.cid = A.comps[0].id;
   const ev=evById(ui.ev), cid=ui.cid, rec=R("mark",ev.id,cid)||{marks:{}}; const locked=!!R("lock",ev.id)?.locked; const dis=(locked||!canWrite())?"disabled":"";
   const c=calc(ev.id,cid), asp=scopeAsp(ev), filled=c?c.filled:0; const key=id=>ev.id+"/"+cid+"/"+id; const scope=(ev.scope||[]).map(String);
+  const canPhoto=canWrite()&&(!locked||isAdmin());
   const crits=scheme().filter(cr=>scope.includes(String(cr.id))).map(cr=>{
     const subs=cr.subs.map(s=>{ const v=rec.marks?.[s.id], pts=subPts(s,v), st=saveState[key(s.id)];
       const sv = st==="saving"?'<span class="sv">…</span>':st==="err"?'<span class="sv bad">✗</span>':pts!==null?'<span class="sv good">✓</span>':"";
@@ -114,13 +115,14 @@ V.penilaian = () => {
       else { hint="0–3 · selisih maks 1"; const a=Array.isArray(v)?v:[], bad=jBad[key(s.id)];
         ctrl=`<div class="jx">${[0,1,2].map(k=>`<input class="jb ${bad?"bad":""}" type="number" inputmode="numeric" min="0" max="3" id="as-${s.id}-${k}" data-asp="${s.id}" data-kind="J" data-k="${k}" value="${bad?(bad[k]??""):(a[k]??"")}" placeholder="J${k+1}" aria-label="${esc(s.id)} juri ${k+1}" ${dis}>`).join("")}<button type="button" class="q" data-desc="${s.id}" aria-label="Arti nilai">?</button></div>`; }
       return `<div class="asp">${typBadge(s)}<div class="asp-d"><span>${esc(s.d)}</span><span class="note">${esc(s.id)} · ${hint}</span>${ui.openDesc===s.id?`<div class="desc">${(A.cfg.jlabel||[]).map(l=>`<div>${esc(l)}</div>`).join("")}</div>`:""}</div><div class="asp-c">${ctrl}</div><div class="asp-p num">${sv} ${pts!==null?fmt(pts):"—"}<span class="muted"> / ${fmt(s.max)}</span></div></div>`; }).join("");
-    return `<div class="crit"><div class="crit-h"><h3>${esc(cr.id)} · ${esc(cr.name)}</h3><span class="num">${c?fmt(c.byCrit[cr.id]):fmt(0)} / ${fmt(critMax(cr.id))}</span></div>${subs}</div>`; }).join("");
+    return `<div class="crit"><div class="crit-h"><h3>${esc(cr.id)} · ${esc(cr.name)}</h3><span class="num">${c?fmt(c.byCrit[cr.id]):fmt(0)} / ${fmt(critMax(cr.id))}</span></div>${subs}${critExtras(ev,cid,String(cr.id),dis,canPhoto)}</div>`; }).join("");
   const maxScope = scope.reduce((a,i)=>a+critMax(i),0);
   return `<div><h2>Assessment · Marking Form</h2><p class="lead">Pilih peserta lalu TO. Aspek M: ketik Y atau N lalu Enter. Aspek J: isi nilai 1–3 juri. Tersimpan otomatis.</p></div>
   <div class="panel"><div class="grid g3"><label class="f">Peserta<select id="cidSel">${A.comps.map(x=>`<option value="${x.id}" ${x.id===cid?"selected":""}>${esc(x.name)}</option>`).join("")}</select></label><label class="f">Try out<select id="evSel">${events().map(e=>`<option value="${e.id}" ${e.id===ev.id?"selected":""}>${esc(e.name)} · ${esc(e.label||dlabel(e.date))}</option>`).join("")}</select></label>
     <div><div class="label">Progress</div><div class="row" style="margin-top:6px"><span class="big num" style="font-size:30px">${filled} / ${asp.length}</span><span class="muted">aspek</span></div></div></div>
-    <div class="row"><span class="chip">${esc(ev.focus||"")}</span><span class="chip">Batas ${fmt(ev.limit/60,0)} jam</span>${locked?'<span class="chip bad">MARKS LOCKED</span>':'<span class="chip acc">MARKS OPEN</span>'}</div></div>
+    <div class="row"><span class="chip">${esc(ev.focus||"")}</span><span class="chip">Batas ${fmt(ev.limit/60,0)} jam</span>${ui.upl?`<span class="chip warn">Mengunggah ${ui.upl} foto…</span>`:""}${locked?'<span class="chip bad">MARKS LOCKED</span>':'<span class="chip acc">MARKS OPEN</span>'}</div></div>
   <div style="display:flex;flex-direction:column;gap:14px">${crits||'<div class="empty">TO ini belum punya kriteria yang diujikan.</div>'}</div>
+  <div class="crit"><div class="crit-h"><h3>Foto hasil kerja keseluruhan</h3><span class="num">${photosOf(ev.id,cid,"all").length} foto</span></div>${critExtras(ev,cid,"all",dis,canPhoto)}</div>
   <div class="crit"><div class="crit-h"><h3>Catatan TO & aturan</h3><span class="num ${c&&(c.k3||c.bahan)?"down":""}">${c&&c.k3?"Nilai 0":c&&c.bahan?"−"+c.bahan:"tanpa potongan"}</span></div>
     <div style="padding:14px;display:flex;flex-direction:column;gap:12px">
     <div class="grid g3"><label class="f">Waktu dipakai (menit)<input type="number" inputmode="numeric" min="0" id="x-minutes" data-extra="minutes" value="${rec.minutes??""}" ${dis}></label><label class="f">Time plan (menit)<input type="number" inputmode="numeric" min="0" id="x-plan" data-extra="plan" value="${rec.plan??""}" ${dis}></label><label class="f">Bahan tambahan (−1 poin/item)<input type="number" inputmode="numeric" min="0" id="x-bahan" data-extra="bahan" value="${rec.bahan??""}" ${dis}></label></div>
@@ -208,12 +210,59 @@ function reportHTML(kind, eid, cid){
 }
 V.laporan = () => {
   if(!events().length) return `<div class="empty">Belum ada TO.</div>`; if(!evById(ui.pev)) ui.pev=events()[0].id; if(!compById(ui.pcid)&&A.comps.length) ui.pcid=A.comps[0].id;
-  const kinds=[["summary","Mark Summary Form"],["form","Marking Form (berisi nilai)"],["blank","Marking Form kosong"]];
+  const kinds=[["lapto","Laporan hasil TO (dengan foto & catatan juri)"],["summary","Mark Summary Form"],["form","Marking Form (berisi nilai)"],["blank","Marking Form kosong"]];
   return `<div class="no-print"><h2>Reports</h2><p class="lead">Lembar bergaya CIS. Tekan Cetak lalu pilih printer atau Save as PDF, kertas A4 tegak, dan matikan Headers and footers.</p></div>
   <div class="panel no-print"><div class="grid g3"><label class="f">Dokumen<select id="rKind">${kinds.map(k=>`<option value="${k[0]}" ${k[0]===ui.pkind?"selected":""}>${k[1]}</option>`).join("")}</select></label><label class="f">Peserta<select id="rCid" ${ui.pkind==="blank"?"disabled":""}>${A.comps.map(c=>`<option value="${c.id}" ${c.id===ui.pcid?"selected":""}>${esc(c.name)}</option>`).join("")}</select></label><label class="f">Try out<select id="rEv">${events().map(e=>`<option value="${e.id}" ${e.id===ui.pev?"selected":""}>${esc(e.name)} · ${esc(e.label||dlabel(e.date))}</option>`).join("")}</select></label></div>
-  <div><button class="btn primary" id="printBtn">Cetak</button></div></div>
-  <div class="paper-wrap">${reportHTML(ui.pkind,ui.pev,ui.pcid)}</div>`;
+  <div class="row"><button class="btn primary" id="printBtn">Cetak / Simpan PDF</button>${ui.pkind==="lapto"?'<button class="btn" id="waCopy">Salin ringkasan untuk WhatsApp</button>':""}</div></div>
+  <div class="paper-wrap">${ui.pkind==="lapto"?lapTO(ui.pev,ui.pcid):reportHTML(ui.pkind,ui.pev,ui.pcid)}</div>`;
 };
+
+
+/* ---------- Foto & laporan TO ---------- */
+const photosOf=(eid,cid,crit)=>Object.values(A.rec).filter(r=>r.kind==="photo"&&r.competitor_id===cid&&r.data?.eid===eid&&(crit===undefined||r.data.crit===String(crit))).map(r=>({id:r.id,...r.data})).sort((a,b)=>(a.at||0)-(b.at||0));
+function critExtras(ev,cid,crit,dis,canPhoto){
+  const ph=photosOf(ev.id,cid,crit); const rec=R("mark",ev.id,cid)||{}; const note=crit==="all"?null:((rec.cnotes||{})[crit]||"");
+  return `<div class="crit-x">${note!==null?`<label class="f">Catatan juri untuk bagian ini<textarea data-cnote="${esc(crit)}" rows="2" placeholder="Contoh: mitre kiri atas renggang 1,5 mm; label panel belum lengkap" ${dis}>${esc(note)}</textarea></label>`:""}
+  <div class="ph-grid">${ph.map(p=>{ const u=photoUrl(p.path); return `<div class="ph">${u&&u!=="err"?`<a href="${u}" target="_blank" rel="noopener"><img src="${u}" alt="Foto ${esc(crit)}" loading="lazy"></a>`:`<div class="ph-ph">${u==="err"?"✗":"…"}</div>`}${canPhoto?`<button type="button" class="ph-del" data-delphoto="${esc(p.id)}" data-path="${esc(p.path)}" aria-label="Hapus foto">✕</button>`:""}</div>`; }).join("")}
+  ${canPhoto?`<label class="ph-add">📷<span>Tambah foto</span><input type="file" accept="image/*" multiple data-keepfile="ph:${esc(crit)}" style="display:none"></label>`:(ph.length?"":'<span class="note">Belum ada foto.</span>')}</div></div>`;
+}
+function prevScore(eid,cid){ const evs=events(); const i=evs.findIndex(e=>e.id===eid); for(let k=i-1;k>=0;k--){ const c=calc(evs[k].id,cid); if(c) return {ev:evs[k],c}; } return null; }
+function lapTO(eid,cid){
+  const e=evById(eid); const p=compById(cid)||{}; const c=calc(eid,cid); const rec=R("mark",eid,cid)||{}; const scope=(e.scope||[]).map(String);
+  const maxScope=scope.reduce((a,i)=>a+critMax(i),0); const pv=prevScore(eid,cid);
+  const rank=A.comps.map(x=>({id:x.id,s:calc(eid,x.id)?.score})).filter(x=>x.s!=null).sort((a,b)=>b.s-a.s); const pos=rank.findIndex(x=>x.id===cid);
+  const by=id=>{ const q=(A.profiles||[]).find(x=>x.id===id); return q?.name||q?.email||""; };
+  const cap=ph=>`${ph.name||by(ph.by)||""}${ph.at?" · "+new Date(ph.at).toLocaleString("id-ID",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}):""}`;
+  const phGrid=list=>list.length?`<div class="r-ph">${list.map(ph=>{ const u=photoUrl(ph.path); return `<figure>${u&&u!=="err"?`<img src="${u}" alt="Foto">`:'<div style="height:40mm;border:1px solid #999;display:grid;place-items:center">memuat foto…</div>'}<figcaption>${esc(cap(ph))}</figcaption></figure>`; }).join("")}</div>`:"";
+  const lost=[]; scheme().filter(cr=>scope.includes(String(cr.id))).forEach(cr=>cr.subs.forEach(a=>{ const v=c?.byAsp?.[a.id]; if(v!=null&&a.max-v>0.009) lost.push({a,cr,l:a.max-v}); })); lost.sort((x,y)=>y.l-x.l);
+  const head=`<div class="r-head"><div><div class="r-small">Training Information System (TIS)</div><div class="r-small">LKS SMK · Electrical Installations${CFG.SCHOOL?" · "+esc(CFG.SCHOOL):""}</div></div><div class="r-title">LAPORAN HASIL ${esc(e.name)}</div></div>
+  <table class="r-meta"><tr><td>Peserta</td><td><b>${esc(p.name||"")}</b>${p.kelas?" · kelas "+esc(p.kelas):""}</td></tr><tr><td>Try out</td><td><b>${esc(e.name)}</b> · ${esc(e.label||dlabel(e.date))} · ${esc(e.focus||"")}</td></tr><tr><td>Musim</td><td>${esc(A.season.name)}</td></tr><tr><td>Diisi oleh</td><td>${esc(rec.by||"")}</td></tr></table>`;
+  if(!c) return `<div class="paper">${head}<p>Belum ada nilai untuk peserta ini pada ${esc(e.name)}.</p></div>`;
+  const tp=c.minutes&&c.plan?Math.round((c.minutes-c.plan)/c.plan*100):null;
+  const score=`<div class="r-score"><div><div class="r-small">Skor skala 100</div><div class="r-big">${fmt(c.score,1)}</div></div>
+   <div class="r-kv">Poin: <b>${fmt(c.net)}</b> dari ${fmt(maxScope)}${c.bahan?` (potongan bahan tambahan −${c.bahan})`:""}${c.k3?" · <b>pelanggaran K3 berat: nilai 0</b>":""}<br>
+   Aspek dinilai: ${c.filled}/${c.all} ${c.complete?"(lengkap)":"(belum lengkap)"}<br>
+   Waktu: ${c.minutes?c.minutes+" menit":"–"} dari batas ${fmt(e.limit,0)} menit${c.plan?` · time plan ${c.plan} menit${tp!==null?` (${tp>0?"+":""}${tp}%)`:""}`:""}<br>
+   ${pv?`Dibanding ${esc(pv.ev.name)}: ${fmt(pv.c.score,1)} → ${fmt(c.score,1)} (<b>${c.score-pv.c.score>=0?"+":""}${fmt(c.score-pv.c.score,1)}</b>)`:"TO pertama peserta ini"}${rank.length>1&&pos>=0?` · peringkat ${pos+1} dari ${rank.length}`:""}</div></div>`;
+  const ringkas=`<table class="r-tbl"><thead><tr><th>Bagian penilaian</th><th class="r-n">Nilai</th><th class="r-n">Maks</th><th class="r-n">%</th></tr></thead><tbody>${scheme().filter(cr=>scope.includes(String(cr.id))).map(cr=>{ const v=c.byCrit[cr.id]||0, m=critMax(cr.id); return `<tr><td>${esc(cr.id)} · ${esc(cr.name)}</td><td class="r-n">${fmt(v)}</td><td class="r-n">${fmt(m)}</td><td class="r-n">${m?fmt(v/m*100,0):"–"}</td></tr>`; }).join("")}<tr class="r-tot"><td>Total${c.bahan?" (setelah potongan)":""}</td><td class="r-n">${fmt(c.net)}</td><td class="r-n">${fmt(maxScope)}</td><td class="r-n">${fmt(c.score,0)}</td></tr></tbody></table>`;
+  const prior=lost.length?`<div class="r-sec"><h4><span>Prioritas perbaikan (nilai terbanyak hilang)</span></h4><ol class="r-list">${lost.slice(0,5).map(x=>`<li>${esc(x.a.id)} ${esc(x.a.d)} — hilang ${fmt(x.l)} dari ${fmt(x.a.max)} poin</li>`).join("")}</ol></div>`:"";
+  const secs=scheme().filter(cr=>scope.includes(String(cr.id))).map(cr=>{ const v=c.byCrit[cr.id]||0, m=critMax(cr.id); const note=(rec.cnotes||{})[cr.id];
+    return `<div class="r-sec"><h4><span>${esc(cr.id)} · ${esc(cr.name)}</span><span class="r-n">${fmt(v)} / ${fmt(m)}</span></h4><div class="r-barw"><i style="width:${m?Math.min(100,v/m*100):0}%"></i></div>
+    <table class="r-tbl"><thead><tr><th>ID</th><th>Aspek</th><th>Jenis</th><th>Isian juri</th><th class="r-n">Nilai</th><th class="r-n">Maks</th></tr></thead><tbody>${cr.subs.map(a=>{ const iv=rec.marks?.[a.id]; const isi=a.t==="M"?(iv===1?"Y":iv===0?"N":"–"):a.t==="J"?(jVals(iv).length?jVals(iv).map((x,k)=>"J"+(k+1)+"="+x).join(" · "):"–"):(iv??"–")+(a.t==="C"?" / "+a.n:"");
+      return `<tr><td>${esc(a.id)}</td><td>${esc(a.d)}</td><td>${a.t}</td><td>${isi}</td><td class="r-n">${c.byAsp[a.id]!=null?fmt(c.byAsp[a.id]):"–"}</td><td class="r-n">${fmt(a.max)}</td></tr>`; }).join("")}</tbody></table>
+    ${note?`<div class="r-note"><b>Catatan juri:</b> ${esc(note)}</div>`:""}${phGrid(photosOf(eid,cid,cr.id))}</div>`; }).join("");
+  const all=photosOf(eid,cid,"all");
+  return `<div class="paper">${head}${score}${ringkas}${rec.note?`<div class="r-note"><b>Catatan umum juri:</b> ${esc(rec.note)}</div>`:""}${prior}${secs}${all.length?`<div class="r-sec"><h4><span>Foto hasil kerja keseluruhan</span></h4>${phGrid(all)}</div>`:""}
+  <div class="r-sign"><div><div class="r-line"></div>Juri 1</div><div><div class="r-line"></div>Juri 2</div><div><div class="r-line"></div>Juri 3</div><div><div class="r-line"></div>Peserta</div></div><div class="r-foot">TIS ${VERSION} · dicetak ${new Date().toLocaleDateString("id-ID")}</div></div>`;
+}
+function waText(eid,cid){
+  const e=evById(eid), c=calc(eid,cid), rec=R("mark",eid,cid)||{}; const scope=(e.scope||[]).map(String); if(!c) return "";
+  const pv=prevScore(eid,cid); const lines=[`*Laporan ${e.name} · ${cname(cid)}*`,`${e.label||dlabel(e.date)} · ${e.focus||""}`,`Skor: *${fmt(c.score,1)}* / 100 (${fmt(c.net)} dari ${fmt(scope.reduce((a,i)=>a+critMax(i),0))} poin)${pv?` · sebelumnya ${pv.ev.name} ${fmt(pv.c.score,1)}`:""}`];
+  if(c.minutes) lines.push(`Waktu: ${c.minutes} menit${c.plan?` (time plan ${c.plan})`:""}`); if(c.bahan) lines.push(`Bahan tambahan: ${c.bahan} item`); if(c.k3) lines.push("Pelanggaran K3 berat: nilai 0");
+  lines.push("","Per bagian:"); scheme().filter(cr=>scope.includes(String(cr.id))).forEach(cr=>{ lines.push(`- ${cr.name}: ${fmt(c.byCrit[cr.id]||0)}/${fmt(critMax(cr.id))}`); const n=(rec.cnotes||{})[cr.id]; if(n) lines.push(`  ↳ ${n}`); });
+  if(rec.note) lines.push("","Catatan juri: "+rec.note);
+  return lines.join("\n");
+}
 
 /* ---------- Jurnal ---------- */
 V.jurnal = () => {
@@ -250,6 +299,7 @@ function actText(a){
   if(a.kind==="gate") return "Memperbarui gate test"+c;
   if(a.kind==="journal") return (del?"Menghapus jurnal":"Menulis jurnal latihan")+c;
   if(a.kind==="log") return del?"Menghapus log harian":"Menulis log harian";
+  if(a.kind==="photo"){ const [pe,pc]=String(a.ref).split("~"); const cr=scheme().find(x=>String(x.id)===pc); return (del?"Menghapus foto ":"Menambah foto ")+(evById(pe)?.name||pe)+" · "+(pc==="all"?"keseluruhan":(cr?cr.name:pc))+c; }
   return a.kind+" "+a.ref;
 }
 const hhmm = iso => { const d=new Date(iso); return String(d.getHours()).padStart(2,"0")+"."+String(d.getMinutes()).padStart(2,"0"); };

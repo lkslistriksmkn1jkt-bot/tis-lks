@@ -3,7 +3,7 @@
    Data: Supabase (bila config.js diisi) atau mode demo (localStorage)
    ===================================================================== */
 "use strict";
-const VERSION = "v2027.5";
+const VERSION = "v2027.6";
 const CFG = window.TIS_CONFIG || {};
 const DEMO = !CFG.SUPABASE_URL || !CFG.SUPABASE_ANON_KEY;
 const COLORS = ["#1D5FC4","#D35A22","#2F9A3F","#8E44AD","#B07A00","#0E8C8C","#C2372B","#5A6773"];
@@ -22,6 +22,9 @@ const LocalStore = {
     if(last){ last.at=now; last.n++; } else this.db.activity.unshift({ id:Date.now()+Math.random(), season_id:r.season_id, rec_id:r.id, kind:r.kind, ref:r.ref, competitor_id:r.competitor_id, action, n:1, user_id:"demo", first_at:now, at:now }); },
   async listActivity(sid, from, to, lim){ return clone(this.db.activity.filter(a=>a.season_id===sid&&a.at>=from&&a.at<to)); },
   async setName(id, n){ const p=this.db.profiles.find(x=>x.id===id); if(p){ p.name=n; this.save(); } },
+  async uploadPhoto(path, blob){ const u=await new Promise((ok,no)=>{ const fr=new FileReader(); fr.onload=()=>ok(fr.result); fr.onerror=no; fr.readAsDataURL(blob); }); this.db.blobs=this.db.blobs||{}; this.db.blobs[path]=u; try{ this.save(); }catch(e){ delete this.db.blobs[path]; throw new Error("Penyimpanan demo penuh"); } },
+  async photoUrls(paths){ const o={}; paths.forEach(p=>{ if(this.db.blobs?.[p]) o[p]=this.db.blobs[p]; }); return o; },
+  async deletePhoto(path){ if(this.db.blobs) delete this.db.blobs[path]; this.save(); },
   save(){ try{ localStorage.setItem(this.key, JSON.stringify(this.db)); }catch(e){ toast("Penyimpanan browser penuh."); } },
   async init(){ this.load(); return { user:{id:"demo",email:"demo@lokal"}, profile:this.db.profiles[0] }; },
   async signIn(){ return {}; }, async signOut(){}, async updatePassword(){ return {}; },
@@ -77,6 +80,9 @@ const SupaStore = {
   async listProfiles(){ const { data, error } = await this.sb.from("profiles").select("*").order("created_at"); if(error) throw error; return data; },
   async setRole(id, role){ const { error } = await this.sb.from("profiles").update({ role }).eq("id", id); if(error) throw error; },
   async setName(id, name){ const { error } = await this.sb.from("profiles").update({ name }).eq("id", id); if(error) throw error; },
+  async uploadPhoto(path, blob){ const { error } = await this.sb.storage.from("tis-foto").upload(path, blob, { contentType:"image/jpeg", upsert:false }); if(error) throw error; },
+  async photoUrls(paths){ if(!paths.length) return {}; const { data, error } = await this.sb.storage.from("tis-foto").createSignedUrls(paths, 3600*6); if(error) throw error; const o={}; (data||[]).forEach(d=>{ if(d.signedUrl) o[d.path]=d.signedUrl; }); return o; },
+  async deletePhoto(path){ const { error } = await this.sb.storage.from("tis-foto").remove([path]); if(error) throw error; },
   async listActivity(sid, from, to, lim){ const { data, error } = await this.sb.from("activity").select("*").eq("season_id", sid).gte("at", from).lt("at", to).order("at", { ascending:false }).limit(lim||500); if(error) throw error; return data; },
   subscribe(seasonId, onRecord, onOther){
     if(this.ch) this.sb.removeChannel(this.ch);
@@ -92,7 +98,7 @@ const Store = DEMO ? LocalStore : SupaStore;
 
 /* ---------------- State aplikasi ---------------- */
 const A = { user:null, profile:null, seasons:[], season:null, cfg:null, comps:[], rec:{}, loading:true, online:true, profiles:[] };
-const ui = { ev:null, cid:null, rcid:null, gcid:null, detail:null, lostOnly:false, pev:null, pcid:null, pkind:"summary", jtab:null, logDate:null, logFrom:null, jxFrom:null, jxTo:null, jxCid:"", logTo:null, actFor:null, set:"musim", openDesc:null, quiz:null, quizShow:false, edit:null, editKey:null };
+const ui = { ev:null, cid:null, rcid:null, gcid:null, detail:null, lostOnly:false, pev:null, pcid:null, pkind:"lapto", jtab:null, logDate:null, logFrom:null, jxFrom:null, jxTo:null, jxCid:"", logTo:null, actFor:null, set:"musim", openDesc:null, quiz:null, quizShow:false, edit:null, editKey:null };
 const saveState = {}, jBad = {};
 try{ Object.assign(ui, JSON.parse(localStorage.getItem("tis-ui")||"{}")); }catch(e){}
 function rememberUI(){ try{ localStorage.setItem("tis-ui", JSON.stringify({ ev:ui.ev, cid:ui.cid, rcid:ui.rcid, gcid:ui.gcid, pev:ui.pev, pcid:ui.pcid, pkind:ui.pkind, jtab:ui.jtab, set:ui.set })); }catch(e){} }
@@ -112,7 +118,7 @@ const addDays = (id,n) => { const d=dparts(id); d.setDate(d.getDate()+n); return
 const initials = n => (n||"?").split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]).join("").toUpperCase();
 function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.hidden=false; clearTimeout(toast._t); toast._t=setTimeout(()=>t.hidden=true, 3000); }
 const debounce = (fn,ms) => { let t; return (...a) => { clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; };
-function errMsg(e){ const m = e && (e.message || e.error_description || String(e)); if(/Invalid login/i.test(m)) return "E-mail atau kata sandi salah."; if(/Email not confirmed/i.test(m)) return "Akun belum dikonfirmasi. Minta admin mengonfirmasi di Supabase."; if(/row-level security|permission/i.test(m)) return "Akun Anda tidak punya izin untuk perubahan ini."; if(/records_kind_check|check constraint/i.test(m)) return "Database belum diperbarui. Admin perlu menjalankan update-log.sql di Supabase."; if(/Failed to fetch|NetworkError/i.test(m)) return "Tidak ada koneksi internet."; return m || "Terjadi kesalahan."; }
+function errMsg(e){ const m = e && (e.message || e.error_description || String(e)); if(/Invalid login/i.test(m)) return "E-mail atau kata sandi salah."; if(/Email not confirmed/i.test(m)) return "Akun belum dikonfirmasi. Minta admin mengonfirmasi di Supabase."; if(/row-level security|permission/i.test(m)) return "Akun Anda tidak punya izin untuk perubahan ini."; if(/records_kind_check|check constraint/i.test(m)) return "Database belum diperbarui. Admin perlu menjalankan berkas SQL pembaruan terbaru (update-foto.sql) di Supabase."; if(/bucket not found|Bucket not found/i.test(m)) return "Penyimpanan foto belum dibuat. Admin perlu menjalankan update-foto.sql di Supabase."; if(/row-level security|new row violates|Unauthorized|403/i.test(m)) return "Akun Anda tidak punya izin mengunggah foto (perlu peran Juri atau Admin)."; if(/Failed to fetch|NetworkError/i.test(m)) return "Tidak ada koneksi internet."; return m || "Terjadi kesalahan."; }
 
 /* ---------------- Akses data musim ---------------- */
 const compColor = c => COLORS[(A.comps.indexOf(c) % COLORS.length + COLORS.length) % COLORS.length];

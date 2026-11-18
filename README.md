@@ -112,6 +112,12 @@ Bagi pemasangan lama, jalankan `update-log.sql` **sekali** di Supabase (SQL Edit
 
 Nama setiap pengguna bisa diganti admin di **Pengaturan › Pengguna**, atau oleh pengguna itu sendiri di **Profil**.
 
+## Foto & laporan TO
+
+- Di **Assessment**, setiap bagian penilaian punya kotak **Catatan juri** dan tombol **📷 Tambah foto** (kamera atau galeri HP). Ada juga bagian **Foto hasil kerja keseluruhan**. Foto otomatis diperkecil (±200–400 KB) sebelum diunggah.
+- Di **Reports › Laporan hasil TO**: skor, perbandingan dengan TO sebelumnya, nilai tiap bagian dan tiap aspek (termasuk J1/J2/J3), catatan juri, foto, dan prioritas perbaikan. Tombol **Cetak / Simpan PDF** dan **Salin ringkasan untuk WhatsApp**.
+- Pemasangan lama: jalankan `update-foto.sql` sekali di Supabase (SQL Editor). Pemasangan baru sudah termasuk di `setup.sql`.
+
 ## Masalah yang sering ditemui
 
 | Gejala | Penyebab dan solusi |
