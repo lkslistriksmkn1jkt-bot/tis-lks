@@ -195,11 +195,11 @@ create trigger records_stamp before insert or update on public.records
 -- 1. Izinkan jenis data 'photo' (data foto per TO/bagian penilaian)
 alter table public.records drop constraint if exists records_kind_check;
 alter table public.records add constraint records_kind_check
-  check (kind in ('mark','lock','done','gate','journal','log','photo'));
+  check (kind in ('mark','lock','done','gate','journal','log','photo','harian'));
 
 -- 2. Tempat penyimpanan foto (privat, maks 5 MB per foto, hanya gambar)
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('tis-foto', 'tis-foto', false, 5242880, array['image/jpeg','image/png','image/webp'])
+values ('tis-foto', 'tis-foto', false, 10485760, array['image/jpeg','image/png','image/webp','application/pdf'])
 on conflict (id) do update set file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
 
 -- 3. Hak akses: semua pengguna yang masuk boleh melihat; admin & juri boleh unggah/hapus

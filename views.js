@@ -23,7 +23,7 @@ function loginView(err){
 }
 
 /* ---------- Kerangka ---------- */
-const NAV = [["beranda","Beranda"],["jadwal","Jadwal"],["scheme","Marking Scheme"],["penilaian","Assessment",()=>canWrite()],["hasil","Results"],["gate","Gate Test"],["laporan","Reports"],["jurnal","Jurnal"],["log","Log Harian"],["istilah","Istilah"],["peserta","Peserta"],["pengaturan","Pengaturan",()=>isAdmin()],["profil","Profil"]];
+const NAV = [["beranda","Beranda"],["jadwal","Jadwal"],["scheme","Marking Scheme"],["penilaian","Assessment",()=>canWrite()],["harian","Penilaian Harian"],["hasil","Results"],["gate","Gate Test"],["laporan","Reports"],["jurnal","Jurnal"],["log","Log Harian"],["istilah","Istilah"],["peserta","Peserta"],["pengaturan","Pengaturan",()=>isAdmin()],["profil","Profil"]];
 function shell(inner, r){
   const roleName = { admin:"Admin", juri:"Juri", viewer:"Pengamat" }[role()];
   const seasonOpts = A.seasons.map(s=>`<option value="${s.id}" ${s.id===A.season?.id?"selected":""}>${esc(s.name)}${s.active?" (aktif)":""}</option>`).join("");
@@ -310,6 +310,7 @@ function actText(a){
   if(a.kind==="journal") return (del?"Menghapus jurnal":"Menulis jurnal latihan")+c;
   if(a.kind==="log") return del?"Menghapus log harian":"Menulis log harian";
   if(a.kind==="photo"){ const [pe,pc]=String(a.ref).split("~"); const cr=scheme().find(x=>String(x.id)===pc); return (del?"Menghapus foto ":"Menambah foto ")+(evById(pe)?.name||pe)+" · "+(pc==="all"?"keseluruhan":(cr?cr.name:pc))+c; }
+  if(a.kind==="harian"){ const [sr,it,rp]=String(a.ref).split("~"); const S=A.rec[recId("harian",sr,null)]?.data; const t=S?S.title:"sesi"; if(!it) return (del?"Menghapus sesi harian ":(a.action==="buat"?"Membuat sesi harian ":"Mengubah sesi harian "))+t; const nm=(S?.items||[]).find(i=>i.id===it)?.name||it; return (del?"Menghapus hasil harian ":"Mengisi penilaian harian ")+t+" · "+nm+" P"+rp+c+(a.n>1?` (${a.n}× simpan)`:""); }
   return a.kind+" "+a.ref;
 }
 const hhmm = iso => { const d=new Date(iso); return String(d.getHours()).padStart(2,"0")+"."+String(d.getMinutes()).padStart(2,"0"); };

@@ -130,3 +130,14 @@ Nama setiap pengguna bisa diganti admin di **Pengaturan › Pengguna**, atau ole
 | Kaki halaman tertulis OFFLINE | Internet terputus. Nilai yang gagal disimpan bertanda ✗. Isi ulang setelah online. |
 
 Versi aplikasi: lihat kaki halaman (misalnya `v2027.1`).
+
+## Penilaian Harian (v2027.9)
+
+Menu **Penilaian Harian** untuk latihan pendek yang dinilai setiap hari. Try Out tetap untuk mini proyek yang dinilai lengkap.
+
+- **Sesi:** tanggal, jenis penilaian, judul, daftar soal (mis. Sketsa 1–3), jumlah percobaan, dan yang diukur (waktu baca, waktu kerja, kesalahan, deviasi, skor, serta kriteria tambahan dengan nilai maksimum). Target bisa diisi.
+- **Stopwatch per peserta:** Mulai baca → Paham → mulai kerja → Selesai. Tersedia tombol "Mulai semua peserta". Waktu juga bisa diketik manual (3:25 atau 3,5).
+- **Unggahan:** gambar/file soal (foto atau PDF, maks 10 MB) per sesi dan per soal, serta foto hasil kerja per peserta.
+- **Rekap per jenis penilaian:** rata-rata dan perkembangan dari sesi pertama ke sesi terakhir.
+- **Excel:** unduh hasil (sheet Hasil, Rekap, Per jenis). Rencana harian bisa diunduh, diedit, lalu diunggah kembali.
+- **Database:** jalankan `update-harian.sql` sekali di Supabase.

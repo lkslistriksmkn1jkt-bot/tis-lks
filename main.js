@@ -2,7 +2,7 @@
    Router, render, dan interaksi
    ===================================================================== */
 "use strict";
-const ROUTES = ["beranda","jadwal","scheme","penilaian","hasil","gate","laporan","jurnal","log","istilah","peserta","pengaturan","profil"];
+const ROUTES = ["beranda","jadwal","scheme","penilaian","harian","hasil","gate","laporan","jurnal","log","istilah","peserta","pengaturan","profil"];
 const route = () => { const h=(location.hash||"").slice(1); return ROUTES.includes(h) ? h : "beranda"; };
 let unsub = null;
 

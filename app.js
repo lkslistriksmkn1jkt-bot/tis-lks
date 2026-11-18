@@ -3,7 +3,7 @@
    Data: Supabase (bila config.js diisi) atau mode demo (localStorage)
    ===================================================================== */
 "use strict";
-const VERSION = "v2027.8";
+const VERSION = "v2027.9";
 const CFG = window.TIS_CONFIG || {};
 const DEMO = !CFG.SUPABASE_URL || !CFG.SUPABASE_ANON_KEY;
 const COLORS = ["#1D5FC4","#D35A22","#2F9A3F","#8E44AD","#B07A00","#0E8C8C","#C2372B","#5A6773"];
@@ -80,7 +80,7 @@ const SupaStore = {
   async listProfiles(){ const { data, error } = await this.sb.from("profiles").select("*").order("created_at"); if(error) throw error; return data; },
   async setRole(id, role){ const { error } = await this.sb.from("profiles").update({ role }).eq("id", id); if(error) throw error; },
   async setName(id, name){ const { error } = await this.sb.from("profiles").update({ name }).eq("id", id); if(error) throw error; },
-  async uploadPhoto(path, blob){ const { error } = await this.sb.storage.from("tis-foto").upload(path, blob, { contentType:"image/jpeg", upsert:false }); if(error) throw error; },
+  async uploadPhoto(path, blob){ const { error } = await this.sb.storage.from("tis-foto").upload(path, blob, { contentType:blob.type||"image/jpeg", upsert:false }); if(error) throw error; },
   async photoUrls(paths){ if(!paths.length) return {}; const { data, error } = await this.sb.storage.from("tis-foto").createSignedUrls(paths, 3600*6); if(error) throw error; const o={}; (data||[]).forEach(d=>{ if(d.signedUrl) o[d.path]=d.signedUrl; }); return o; },
   async deletePhoto(path){ const { error } = await this.sb.storage.from("tis-foto").remove([path]); if(error) throw error; },
   async listActivity(sid, from, to, lim){ const { data, error } = await this.sb.from("activity").select("*").eq("season_id", sid).gte("at", from).lt("at", to).order("at", { ascending:false }).limit(lim||500); if(error) throw error; return data; },
@@ -118,7 +118,7 @@ const addDays = (id,n) => { const d=dparts(id); d.setDate(d.getDate()+n); return
 const initials = n => (n||"?").split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]).join("").toUpperCase();
 function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.hidden=false; clearTimeout(toast._t); toast._t=setTimeout(()=>t.hidden=true, 3000); }
 const debounce = (fn,ms) => { let t; return (...a) => { clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; };
-function errMsg(e){ const m = e && (e.message || e.error_description || String(e)); if(/Invalid login/i.test(m)) return "E-mail atau kata sandi salah."; if(/Email not confirmed/i.test(m)) return "Akun belum dikonfirmasi. Minta admin mengonfirmasi di Supabase."; if(/row-level security|permission/i.test(m)) return "Akun Anda tidak punya izin untuk perubahan ini."; if(/records_kind_check|check constraint/i.test(m)) return "Database belum diperbarui. Admin perlu menjalankan berkas SQL pembaruan terbaru (update-foto.sql) di Supabase."; if(/bucket not found|Bucket not found/i.test(m)) return "Penyimpanan foto belum dibuat. Admin perlu menjalankan update-foto.sql di Supabase."; if(/row-level security|new row violates|Unauthorized|403/i.test(m)) return "Akun Anda tidak punya izin mengunggah foto (perlu peran Juri atau Admin)."; if(/Failed to fetch|NetworkError/i.test(m)) return "Tidak ada koneksi internet."; return m || "Terjadi kesalahan."; }
+function errMsg(e){ const m = e && (e.message || e.error_description || String(e)); if(/Invalid login/i.test(m)) return "E-mail atau kata sandi salah."; if(/Email not confirmed/i.test(m)) return "Akun belum dikonfirmasi. Minta admin mengonfirmasi di Supabase."; if(/row-level security|permission/i.test(m)) return "Akun Anda tidak punya izin untuk perubahan ini."; if(/records_kind_check|check constraint/i.test(m)) return "Database belum diperbarui. Admin perlu menjalankan berkas SQL pembaruan terbaru (update-harian.sql) di Supabase."; if(/bucket not found|Bucket not found/i.test(m)) return "Penyimpanan foto belum dibuat. Admin perlu menjalankan update-harian.sql di Supabase."; if(/mime type|not supported|exceeded the maximum|too large|Payload too large/i.test(m)) return "Jenis atau ukuran file ditolak (maks 10 MB, gambar/PDF). Admin perlu menjalankan update-harian.sql di Supabase."; if(/row-level security|new row violates|Unauthorized|403/i.test(m)) return "Akun Anda tidak punya izin mengunggah foto (perlu peran Juri atau Admin)."; if(/Failed to fetch|NetworkError/i.test(m)) return "Tidak ada koneksi internet."; return m || "Terjadi kesalahan."; }
 
 /* ---------------- Akses data musim ---------------- */
 const compColor = c => COLORS[(A.comps.indexOf(c) % COLORS.length + COLORS.length) % COLORS.length];
