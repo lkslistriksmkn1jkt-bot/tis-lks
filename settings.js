@@ -3,8 +3,8 @@
    angka teknis, seleksi, pengguna, backup
    ===================================================================== */
 "use strict";
-const SETS = [["musim","Musim"],["to","TO"],["jadwal","Jadwal"],["scheme","Marking scheme"],["gate","Gate"],["angka","Angka teknis"],["seleksi","Seleksi"],["excel","Excel"],["pengguna","Pengguna"],["backup","Backup"]];
-const SECTION_KEYS = { to:["events"], jadwal:["schedule"], scheme:["scheme"], gate:["gates"], angka:["angka","jlabel"], seleksi:["selection"], musim:["docUrl","jobsheetUrl"] };
+const SETS = [["musim","Musim"],["to","TO"],["jadwal","Jadwal"],["scheme","Marking scheme"],["gate","Gate"],["angka","Angka teknis"],["istilah","Istilah"],["seleksi","Seleksi"],["excel","Excel"],["pengguna","Pengguna"],["backup","Backup"]];
+const SECTION_KEYS = { to:["events"], jadwal:["schedule"], scheme:["scheme"], gate:["gates"], angka:["angka","jlabel"], istilah:["istilah"], seleksi:["selection"], musim:["docUrl","jobsheetUrl"] };
 function getPath(o, p){ return p.split(".").reduce((a,k)=>a==null?a:a[k], o); }
 function setPath(o, p, v){ const ks=p.split("."); let a=o; for(let i=0;i<ks.length-1;i++){ if(a[ks[i]]==null) a[ks[i]] = /^\d+$/.test(ks[i+1]) ? [] : {}; a=a[ks[i]]; } a[ks[ks.length-1]]=v; }
 function ensureEdit(){ const key=ui.set+":"+A.season.id; if(ui.editKey!==key||!ui.edit){ ui.editKey=key; const e={}; (SECTION_KEYS[ui.set]||[]).forEach(k=>e[k]=clone(A.cfg[k]??(k==="selection"?{}:k==="docUrl"||k==="jobsheetUrl"?"":[]))); e.seasonName=A.season.name; ui.edit=e; ui.dirty=false; } return ui.edit; }
@@ -77,6 +77,10 @@ V.pengaturan = () => {
       ${X?`<div class="tbl-wrap rwrap"><table class="rtbl"><thead><tr><th>Terapkan</th><th>Sheet</th><th class="n">Baris</th><th>Hasil pemeriksaan</th></tr></thead><tbody>${Object.keys(names).filter(k=>X[k]).map(k=>{const r=X[k];return `<tr><td data-l="Terapkan"><label class="tick"><input type="checkbox" data-xlsheet="${k}" ${r.apply?"checked":""} ${r.errors.length?"disabled":""}>${r.errors.length?"Tidak bisa":"Ya"}</label></td><td data-l="Sheet"><b>${names[k]}</b></td><td class="n" data-l="Baris">${r.rows.length}</td><td data-l="Hasil pemeriksaan">${r.errors.length?`<div class="err">${r.errors.slice(0,8).map(esc).join("<br>")}${r.errors.length>8?"<br>… dan "+(r.errors.length-8)+" lainnya":""}</div>`:'<span class="chip good">Siap</span>'}${r.warns.length?`<div class="note">${r.warns.slice(0,6).map(esc).join("<br>")}</div>`:""}</td></tr>`;}).join("")}</tbody></table></div>
       <p class="note">Sheet yang dicentang akan <b>menggantikan seluruh</b> bagian yang sama di musim ini. Sheet yang tidak dicentang tidak diubah. Nilai, centang jadwal, dan jurnal yang sudah ada tetap tersimpan.</p>
       <div class="row"><button class="btn primary" id="xlApply">Terapkan & simpan</button><button class="btn" id="xlClear">Batal</button></div>`:""}</div>`;
+  }
+  else if(ui.set==="istilah"){
+    const cur=(E.istilah&&E.istilah.length)?E.istilah:(window.TIS_SEED?.istilah||[]); let txt="", gg=null; cur.forEach(x=>{ if(x.g!==gg){ gg=x.g; txt+=(txt?"\n":"")+"# "+gg+"\n"; } txt+=x.t+" | "+x.a+"\n"; });
+    body=`<div class="panel"><div class="label">Daftar istilah (menu Istilah)</div><p class="note">Baris yang diawali <b>#</b> = nama kelompok. Baris lain: <b>istilah | arti</b>. Tambah, ubah, atau hapus baris lalu simpan.</p><textarea data-istilah="1" style="min-height:420px;font-family:var(--f-mono);font-size:13px">${esc(txt)}</textarea></div>${saveBar()}`;
   }
   else if(ui.set==="angka"){
     body=`<div class="panel"><div class="label">Angka teknis (kuis di Beranda)</div><p class="note">Satu baris: pertanyaan | jawaban</p><textarea data-angka="1" style="min-height:320px">${esc((E.angka||[]).map(a=>a[0]+" | "+a[1]).join("\n"))}</textarea></div>

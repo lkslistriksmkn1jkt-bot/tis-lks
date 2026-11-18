@@ -23,7 +23,7 @@ function loginView(err){
 }
 
 /* ---------- Kerangka ---------- */
-const NAV = [["beranda","Beranda"],["jadwal","Jadwal"],["scheme","Marking Scheme"],["penilaian","Assessment",()=>canWrite()],["hasil","Results"],["gate","Gate Test"],["laporan","Reports"],["jurnal","Jurnal"],["log","Log Harian"],["peserta","Peserta"],["pengaturan","Pengaturan",()=>isAdmin()],["profil","Profil"]];
+const NAV = [["beranda","Beranda"],["jadwal","Jadwal"],["scheme","Marking Scheme"],["penilaian","Assessment",()=>canWrite()],["hasil","Results"],["gate","Gate Test"],["laporan","Reports"],["jurnal","Jurnal"],["log","Log Harian"],["istilah","Istilah"],["peserta","Peserta"],["pengaturan","Pengaturan",()=>isAdmin()],["profil","Profil"]];
 function shell(inner, r){
   const roleName = { admin:"Admin", juri:"Juri", viewer:"Pengamat" }[role()];
   const seasonOpts = A.seasons.map(s=>`<option value="${s.id}" ${s.id===A.season?.id?"selected":""}>${esc(s.name)}${s.active?" (aktif)":""}</option>`).join("");
@@ -341,6 +341,20 @@ V.log = () => {
   <div class="panel"><div class="label">Log asisten</div>${cards}</div>
   <div class="panel"><div class="spread"><div class="label">Aktivitas di aplikasi (otomatis)</div><button class="btn sm no-print" id="actReload">Muat ulang</button></div>${act}</div>
   ${rekap}`;
+};
+
+/* ---------- Daftar istilah ---------- */
+const istilahList = () => (A.cfg.istilah&&A.cfg.istilah.length) ? A.cfg.istilah : (window.TIS_SEED?.istilah||[]);
+const hl = (txt,q) => { const e=esc(txt); if(!q) return e; const i=txt.toLowerCase().indexOf(q); if(i<0) return e; return esc(txt.slice(0,i))+"<mark>"+esc(txt.slice(i,i+q.length))+"</mark>"+esc(txt.slice(i+q.length)); };
+V.istilah = () => {
+  const all=istilahList(); const groups=[...new Set(all.map(x=>x.g))]; const q=(ui.istQ||"").trim().toLowerCase(); const g=ui.istG||"";
+  const list=all.filter(x=>(!g||x.g===g)&&(!q||x.t.toLowerCase().includes(q)||x.a.toLowerCase().includes(q)));
+  const by={}; list.forEach(x=>{ (by[x.g]=by[x.g]||[]).push(x); });
+  return `<div><h2>Daftar istilah</h2><p class="lead">Istilah yang sering muncul di jobsheet, marking scheme, TIS, dan saat lomba. Ketik untuk mencari.</p></div>
+  <div class="panel no-print"><input type="search" id="istQ" placeholder="Cari istilah, misalnya: datum, interlock, zeroing" value="${esc(ui.istQ||"")}" autocomplete="off">
+   <div class="row"><button class="btn sm ${!g?"primary":""}" data-istg="">Semua (${all.length})</button>${groups.map(x=>`<button class="btn sm ${g===x?"primary":""}" data-istg="${esc(x)}">${esc(x.replace(/^[A-Z]\.\s*/,""))}</button>`).join("")}</div>
+   <div class="row"><span class="note">${list.length} istilah ditemukan</span><button class="btn sm" id="istPrint">Cetak / PDF</button></div></div>
+  ${list.length?Object.entries(by).map(([gn,xs])=>`<div class="panel"><div class="label">${esc(gn)}</div><div class="ist">${xs.map(x=>`<div class="ist-r"><b>${hl(x.t,q)}</b><span>${hl(x.a,q)}</span></div>`).join("")}</div></div>`).join(""):'<div class="empty">Istilah tidak ditemukan. Coba kata lain.</div>'}`;
 };
 
 /* ---------- Peserta ---------- */

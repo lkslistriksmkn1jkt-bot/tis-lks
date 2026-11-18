@@ -2,7 +2,7 @@
    Router, render, dan interaksi
    ===================================================================== */
 "use strict";
-const ROUTES = ["beranda","jadwal","scheme","penilaian","hasil","gate","laporan","jurnal","log","peserta","pengaturan","profil"];
+const ROUTES = ["beranda","jadwal","scheme","penilaian","hasil","gate","laporan","jurnal","log","istilah","peserta","pengaturan","profil"];
 const route = () => { const h=(location.hash||"").slice(1); return ROUTES.includes(h) ? h : "beranda"; };
 let unsub = null;
 
@@ -180,6 +180,8 @@ document.addEventListener("click", async e=>{
   if(t.dataset.gcid){ ui.gcid=t.dataset.gcid; rememberUI(); render(); return; }
   if(t.dataset.detail){ ui.detail=ui.detail===t.dataset.detail?null:t.dataset.detail; render(); return; }
   if(t.dataset.delphoto){ if(!confirm("Hapus foto ini?")) return; try{ await Store.deletePhoto(t.dataset.path).catch(()=>{}); await Store.deleteRecord(t.dataset.delphoto); delete A.rec[t.dataset.delphoto]; render(); toast("Foto dihapus."); }catch(err){ toast(errMsg(err)); } return; }
+  if(t.dataset.istg!==undefined){ ui.istG=t.dataset.istg; render(); return; }
+  if(t.id==="istPrint"){ window.print(); return; }
   if(t.id==="waCopy"){ const txt=waText(ui.pev,ui.pcid); if(!txt){ toast("Belum ada nilai untuk dilaporkan."); return; } try{ await navigator.clipboard.writeText(txt); toast("Ringkasan disalin. Tempel di WhatsApp."); }catch(e){ const ta=document.createElement("textarea"); ta.value=txt; document.body.appendChild(ta); ta.select(); try{ document.execCommand("copy"); toast("Ringkasan disalin. Tempel di WhatsApp."); }catch(_){ toast("Tidak bisa menyalin otomatis."); } ta.remove(); } return; }
   if(t.id==="printBtn"){ window.print(); return; }
   if(t.id==="lockBtn"){ const cur=!!R("lock",ui.ev)?.locked; await saveRec("lock", ui.ev, null, { locked:!cur, by:A.profile?.name||"", at:Date.now() }); toast(!cur?"Nilai dikunci.":"Kunci dibuka."); return; }
@@ -254,9 +256,11 @@ document.addEventListener("input", e=>{
   const t=e.target;
   if(t.dataset.kind==="M"){ const c=t.value.toUpperCase(); t.classList.toggle("y",c==="Y"||c==="1"); t.classList.toggle("n",c==="N"||c==="0"); }
   if(t.id==="evNote") saveNote(ui.ev,ui.cid,t.value);
+  if(t.id==="istQ"){ ui.istQ=t.value; render(); return; }
   if(t.dataset.cnote!==undefined) saveCNote(ui.ev,ui.cid,t.dataset.cnote,t.value);
   if(t.dataset.e && t.tagName!=="SELECT"){ setPath(ui.edit,t.dataset.e,t.type==="number"?(t.value===""?"":+t.value):t.value); ui.dirty=true; }
   if(t.dataset.lines){ setPath(ui.edit,t.dataset.lines,t.value.split("\n").map(x=>x.trim()).filter(Boolean)); ui.dirty=true; }
+  if(t.dataset.istilah){ let g="Lainnya"; const out=[]; t.value.split("\n").forEach(l=>{ l=l.trim(); if(!l) return; if(l.startsWith("#")){ g=l.replace(/^#+\s*/,"")||"Lainnya"; return; } const i=l.indexOf("|"); if(i<0) out.push({g,t:l,a:""}); else out.push({g,t:l.slice(0,i).trim(),a:l.slice(i+1).trim()}); }); ui.edit.istilah=out; ui.dirty=true; }
   if(t.dataset.angka){ ui.edit.angka=t.value.split("\n").map(l=>l.split("|").map(x=>x.trim())).filter(a=>a[0]).map(a=>[a[0],a.slice(1).join(" | ")]); ui.dirty=true; }
 });
 

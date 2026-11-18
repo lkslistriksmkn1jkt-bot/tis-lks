@@ -290,3 +290,11 @@ a.btn{text-decoration:none;display:inline-block}
   .paper{padding:0;max-width:none;font-size:11px}
   .r-ph img{height:58mm}
 }
+
+/* ---------- Istilah ---------- */
+.ist{display:flex;flex-direction:column}
+.ist-r{display:grid;grid-template-columns:minmax(120px,220px) minmax(0,1fr);gap:12px;padding:8px 0;border-bottom:1px solid var(--line);font-size:15px}
+.ist-r:last-child{border-bottom:none}
+.ist-r span{color:var(--ink-2,inherit)}
+mark{background:var(--pe-y,#E8C21A);color:#111;border-radius:2px;padding:0 1px}
+@media (max-width:640px){.ist-r{grid-template-columns:1fr;gap:2px}}
