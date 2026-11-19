@@ -267,6 +267,7 @@ function waText(eid,cid){
 /* ---------- Jurnal ---------- */
 V.jurnal = () => {
   if(!A.comps.length) return noComps();
+  if(ui.jRep) return `<div class="row no-print" style="margin-bottom:10px"><button class="btn sm" id="jRepClose">‹ Kembali</button><button class="btn sm primary" id="jRepGo">🖨 Cetak / Simpan PDF</button><span class="note">Di jendela cetak pilih <b>Simpan sebagai PDF</b>, kertas A4.</span></div><div class="paper-wrap">${lapJurnal(ui.jRep)}</div>`;
   const all=Object.values(A.rec).filter(r=>r.kind==="journal").map(r=>({id:r.id,cid:r.competitor_id,upd:r.updated_by,...r.data})).sort((a,b)=>(b.date||"").localeCompare(a.date||"")||(b.at||0)-(a.at||0));
   const day=ui.jDay||todayId(), showAll=!!ui.jAll, fc=ui.jCidF||"";
   const list=all.filter(j=>(showAll||(j.date||"")===day)&&(!fc||j.cid===fc));
@@ -293,9 +294,28 @@ V.jurnal = () => {
   <div class="panel no-print"><div class="label">Unduh / cetak jurnal</div>
     <div class="row"><label class="f" style="flex:1;min-width:140px">Dari<input type="date" id="jxFrom" value="${ui.jxFrom||(all.length?all[all.length-1].date:todayId())}"></label><label class="f" style="flex:1;min-width:140px">Sampai<input type="date" id="jxTo" value="${ui.jxTo||todayId()}"></label>
     <label class="f" style="flex:1;min-width:140px">Peserta<select id="jxCid"><option value="">Semua peserta</option>${A.comps.map(c=>`<option value="${c.id}" ${ui.jxCid===c.id?"selected":""}>${esc(c.name)}</option>`).join("")}</select></label></div>
-    <div class="row"><button class="btn sm primary" id="jXls">Unduh Excel</button><button class="btn sm" id="jPrint">Cetak / PDF</button></div>
-    <p class="note">Excel berisi sheet Jurnal (semua catatan) dan Ringkasan per siswa. Cetak memakai daftar catatan yang sedang tampil.</p></div>`;
+    <div class="row"><button class="btn sm primary" id="jXls">Unduh Excel</button><button class="btn sm" id="jPrint">📄 Laporan PDF</button></div>
+    <p class="note">Excel berisi sheet Jurnal (semua catatan) dan Ringkasan per siswa. Laporan PDF dikelompokkan per peserta (satu bagian per siswa), sesuai rentang tanggal dan peserta di atas.</p></div>`;
 };
+function lapJurnal(P){
+  const n=v=>{ const x=parseFloat(String(v??"").replace(",",".")); return isFinite(x)?x:null; };
+  const all=Object.values(A.rec).filter(r=>r.kind==="journal").map(r=>({id:r.id,cid:r.competitor_id,...r.data})).filter(j=>(j.date||"")>=P.from&&(j.date||"")<=P.to).sort((a,b)=>(a.date||"").localeCompare(b.date||"")||(a.at||0)-(b.at||0));
+  const comps=A.comps.filter(c=>!P.cid||c.id===P.cid);
+  const per=dl=>dlabel(dl,true)+" "+dl.slice(0,4);
+  const pages=comps.map((c,ci)=>{ const L=all.filter(j=>j.cid===c.id);
+    const tps=L.map(j=>{ const w=n(j.waktu), p=n(j.plan); return w>0&&p>0?(w-p)/p*100:null; }).filter(x=>x!==null), devs=L.map(j=>n(j.dev)).filter(x=>x!==null);
+    const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null; const sum=k=>L.reduce((a,j)=>a+(n(j[k])||0),0);
+    const kv=[`<b>${L.length}</b> catatan`,`<b>${new Set(L.map(j=>j.date)).size}</b> hari`,tps.length?`selisih plan rata-rata <b>${Math.round(avg(tps))>0?"+":""}${Math.round(avg(tps))}%</b>`:"",devs.length?`deviasi rata-rata <b>${fmt(avg(devs),1)} mm</b> (terbaik ${fmt(Math.min(...devs),1)})`:"",`cacat <b>${sum("cacat")}</b>`,`bahan tambahan <b>${sum("bahan")}</b>`,`kondisi tidak baik <b>${L.filter(j=>j.kondisi&&j.kondisi!=="Baik").length}×</b>`].filter(Boolean).join(" · ");
+    const rows=L.map(j=>{ const w=n(j.waktu), p=n(j.plan), tp=w>0&&p>0?Math.round((w-p)/p*100):null, d=n(j.dev);
+      const note=[j.bisa?`<b>Sudah bisa:</b> ${esc(j.bisa)}`:"",j.belum?`<b>Belum bisa:</b> ${esc(j.belum)}`:""].filter(Boolean).join("<br>");
+      return `<tbody class="jr"><tr><td>${dlabel(j.date)}</td><td>${esc(j.drill||"–")}</td><td class="r-n">${w>0?mmss(w*60):"–"}</td><td class="r-n">${p>0?mmss(p*60):"–"}</td><td class="r-n">${tp===null?"–":(tp>0?"+":"")+tp+"%"}</td><td class="r-n">${d===null||j.dev===""?"–":fmt(d,1)}</td><td class="r-n">${n(j.cacat)||"–"}</td><td class="r-n">${n(j.bahan)||"–"}</td><td>${esc(j.kondisi||"–")}${n(j.tidur)>0?" · "+fmt(n(j.tidur),1)+" j":""}</td><td>${esc(j.by||"–")}</td></tr>${note?`<tr class="jr-n"><td></td><td colspan="9">${note.replace(/\n/g,"<br>")}</td></tr>`:""}</tbody>`; }).join("");
+    return `<div class="${ci?"h-page":""}">${hHead("JURNAL LATIHAN",per(P.from)+" – "+per(P.to))}
+      <div class="r-score"><div><div class="r-small">Peserta</div><div style="font-size:18px;font-weight:700">${esc(c.name)}</div>${c.kelas?`<div class="r-small">kelas ${esc(c.kelas)}</div>`:""}</div><div class="r-kv">${kv}</div></div>
+      ${L.length?`<div class="r-sec"><h4><span>Catatan latihan</span><span>${L.length} catatan</span></h4><table class="r-tbl jr-t"><thead><tr><th>Tanggal</th><th>Drill / pekerjaan</th><th class="r-n">Waktu</th><th class="r-n">Plan</th><th class="r-n">Selisih</th><th class="r-n">Dev (mm)</th><th class="r-n">Cacat</th><th class="r-n">Bahan</th><th>Kondisi</th><th>Oleh</th></tr></thead>${rows}</table>
+      <div class="r-small" style="text-transform:none">Waktu dalam menit:detik atau jam:menit:detik. Selisih = waktu terhadap time plan (negatif berarti lebih cepat).</div></div>`:'<p>Tidak ada catatan pada rentang ini.</p>'}
+      <div class="r-sign"><div><div class="r-line"></div>Pembina</div><div><div class="r-line"></div>Asisten</div><div><div class="r-line"></div>Peserta</div></div>${hFoot()}</div>`; }).join("");
+  return `<div class="paper">${pages}</div>`;
+}
 
 /* ---------- Log harian asisten ---------- */
 const pname = id => { const p=(A.profiles||[]).find(x=>x.id===id); return p?.name || p?.email || (id===A.user?.id ? (A.profile?.name||A.user?.email) : "") || "Pengguna"; };

@@ -358,3 +358,8 @@ table.h-sum tr.tot td{border-top:2px solid var(--line)}
 
 .asp-g summary{cursor:pointer;list-style-position:outside;margin-left:14px}
 .asp-g[open]{background:var(--sunk);border-radius:6px;padding-bottom:4px}
+
+/* Laporan jurnal */
+.jr-t tbody.jr{break-inside:avoid;page-break-inside:avoid}
+.jr-t tr.jr-n td{border-top:none;padding-top:0;color:#333;font-size:10px;line-height:1.4}
+.jr-t tbody.jr tr:first-child td{border-top:1px solid #bbb}

@@ -181,7 +181,9 @@ document.addEventListener("click", async e=>{
   if(t.dataset.logday!==undefined){ const n=+t.dataset.logday; setLogDate(n===0?todayId():addDays(ui.logDate||todayId(),n)); return; }
   if(t.dataset.logto){ e.preventDefault(); setLogDate(t.dataset.logto); window.scrollTo(0,0); return; }
   if(t.id==="jXls"){ await exportJurnal(); return; }
-  if(t.id==="jPrint"){ window.print(); return; }
+  if(t.id==="jPrint"){ const f=document.getElementById("jxFrom").value, to=document.getElementById("jxTo").value; if(!f||!to||f>to){ toast("Periksa rentang tanggal."); return; } ui.jRep={ from:f, to, cid:document.getElementById("jxCid").value }; render(); window.scrollTo(0,0); return; }
+  if(t.id==="jRepClose"){ ui.jRep=null; render(); return; }
+  if(t.id==="jRepGo"){ window.print(); return; }
   if(t.id==="logXls"){ await exportLog(); return; }
   if(t.id==="logPrint"){ window.print(); return; }
   if(t.id==="actReload"){ ui.actFor=null; render(); return; }
