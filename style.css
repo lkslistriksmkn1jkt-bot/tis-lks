@@ -350,3 +350,8 @@ table.h-sum tr.tot td{border-top:2px solid var(--line)}
 .ms-jd{margin-top:4px;font-size:12px}.ms-jd summary{cursor:pointer;color:var(--accent)}.ms-jd div{margin:3px 0 0 6px}
 
 .sc-h{padding:8px 14px 4px;font-family:var(--f-mono);font-size:12px;font-weight:700;letter-spacing:.03em;border-top:2px solid var(--line);background:var(--sunk)}
+/* Tabel laporan: header membungkus, muat di kertas A4 */
+.paper .r-tbl th{white-space:normal;text-transform:none;letter-spacing:0;font-family:inherit;font-size:10px;color:#222;line-height:1.25;word-break:normal;overflow-wrap:anywhere}
+.paper .r-tbl{max-width:100%}
+.paper .r-tbl td{font-size:10.5px}
+.paper .r-tbl th.r-n{text-align:right}

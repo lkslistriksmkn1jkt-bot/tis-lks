@@ -32,7 +32,7 @@ const hMSText = ms => (ms||[]).map(a=>[a.t,a.d,a.req||"",a.max].concat(a.sc?[a.s
 function hParseMS(txt,old){ const used=new Set(); return String(txt||"").split("\n").map(l=>l.trim()).filter(Boolean).map((l,i)=>{ const p=l.split("|").map(x=>x.trim()); let t=(p[0]||"").toUpperCase(); if(t!=="M"&&t!=="J"){ p.unshift("M"); t="M"; } const d=p[1]||""; const req=p.length>3?p[2]:""; const max=hNum(p[p.length>3?3:2])||0; const sc=(p.length>4?p[4]:"")||"";
   const ex=(old||[]).find(o=>o.d===d&&(o.sc||"")===sc&&!used.has(o.id)); const id=ex?ex.id:"a"+Date.now().toString(36)+i; used.add(id);
   const std=t==="J"?H_STD().subs.filter(x=>!sc||x.id===sc).flatMap(x=>x.aspects).find(a=>a.d===d&&a.jd):null;
-  return { id, t, d, req, max, sc, jd:ex?.jd||std?.jd||hImpJD[d]||undefined }; }).filter(a=>a.d); }
+  return { id, t, d, req, max, sc, jd:ex?.jd||std?.jd||hImpJD[d]||undefined }; }).filter(a=>a.d).filter((a,i,arr)=>arr.findIndex(b=>b.d===a.d&&(b.sc||"")===(a.sc||""))===i); }
 let hImpJD={};
 function hMS(S,r){ const ms=S.ms||[]; if(!ms.length) return null; const v=(r&&r.ms)||{}; let sum=0,f=0; const max=ms.reduce((a,x)=>a+(+x.max||0),0);
   ms.forEach(a=>{ const x=v[a.id]; if(x===undefined||x===null||x==="") return; f++; sum+=a.t==="J"?(+x/3)*a.max:(+x?a.max:0); }); return { sum:Math.round(sum*100)/100, max:Math.round(max*100)/100, filled:f, all:ms.length, pct:f&&max?sum/max*100:null }; }
@@ -137,11 +137,12 @@ function hLibShow(src,label){ hLibSrc=src; const box=document.getElementById("hL
   ${Object.keys(groups).sort().map(k=>`<div class="lib-g"><div class="lib-h">${esc(k)} · ${esc(crit[k]?.name||groups[k][0].critName||"")}${crit[k]?.mark?` <span class="muted">(${crit[k].mark})</span>`:""}</div>${groups[k].map(x=>`<label class="lib-i"><input type="checkbox" data-hlibsc="${esc(x.id)}"> <b>${esc(x.id)}</b> ${esc(x.name)} <span class="muted">· ${x.aspects.length} aspek · ${fmt(x.max??x.aspects.reduce((a,y)=>a+y.max,0),2)}</span></label>`).join("")}</div>`).join("")}
   <div class="row"><button type="button" class="btn sm primary" id="hLibAdd">Tambahkan ke marking scheme</button><label class="row" style="gap:6px"><input type="checkbox" id="hLibRepl" checked> ganti isi yang sudah ada</label></div></div>`; }
 function hLibAdd(){ const ids=[...document.querySelectorAll("[data-hlibsc]:checked")].map(x=>x.dataset.hlibsc); if(!ids.length){ toast("Centang minimal satu sub-kriteria."); return; }
-  const subs=hLibSrc.subs.filter(x=>ids.includes(x.id)); subs.forEach(x=>x.aspects.forEach(a=>{ if(a.jd) hImpJD[a.d]=a.jd; }));
-  const lines=subs.flatMap(x=>x.aspects.map(a=>[a.t,a.d,a.req||"",a.max,x.id].join(" | "))).join("\n");
   const ta=document.getElementById("hfMS"), nm=document.getElementById("hfMSName"), repl=document.getElementById("hLibRepl")?.checked;
+  const have=repl?[]:hParseMS(ta.value); const haveSc=new Set(have.map(a=>a.sc).filter(Boolean));
+  const subs=hLibSrc.subs.filter(x=>ids.includes(x.id)&&!haveSc.has(x.id)); if(!subs.length){ toast("Sub-kriteria itu sudah ada di daftar."); return; } subs.forEach(x=>x.aspects.forEach(a=>{ if(a.jd) hImpJD[a.d]=a.jd; }));
+  const lines=subs.flatMap(x=>x.aspects.map(a=>[a.t,a.d,a.req||"",a.max,x.id].join(" | "))).join("\n");
   ta.value=repl||!ta.value.trim()?lines:ta.value.trim()+"\n"+lines; const nmv=subs.length===1?subs[0].id+" "+subs[0].name:subs.map(x=>x.id).join(" + ");
-  if(repl||!nm.value) nm.value=nmv; else nm.value+=" + "+subs.map(x=>x.id).join(" + ");
+  if(repl||!nm.value.trim()) nm.value=nmv; else { const ex=new Set(nm.value.split(/\s*\+\s*|\s+/)); const add=subs.map(x=>x.id).filter(x=>!ex.has(x)); if(add.length) nm.value+=" + "+add.join(" + "); }
   document.getElementById("hLibBox").innerHTML=""; hMSTot(); toast(`${subs.reduce((a,x)=>a+x.aspects.length,0)} aspek ditambahkan. Simpan sesi untuk memakai.`); }
 function hMSTot(){ const t=document.getElementById("hfMS"), o=document.getElementById("hfMSTot"); if(t&&o) o.textContent=fmt(hParseMS(t.value).reduce((a,x)=>a+x.max,0),2); }
 async function hImportCIS(file){
@@ -241,6 +242,8 @@ function hLapSesi(S,only){
   const lab={baca:"Baca",kerja:"Kerja",salah:"Salah",dev:"Dev (mm)",skor:"Skor"};
   const msMax=(S.ms||[]).reduce((a,x)=>a+(+x.max||0),0);
   const cols=m.map(k=>({k,l:lab[k]})).concat(X.map(x=>({k:"x_"+x.id,l:x.name+(x.max?" /"+x.max:"")}))).concat((S.ms||[]).length?[{k:"ms",l:(S.msName||"Marking scheme")+" /"+fmt(msMax,2)}]:[]);
+  const hasData=k=>A.comps.some(c=>items.some(i=>Array.from({length:reps},(_,x)=>hGet(S,hRes(S.ref,i.id,x+1,c.id),k)).some(v=>v!==undefined&&v!==null&&v!=="")));
+  const colsAll=cols.splice(0); colsAll.filter(o=>hasData(o.k)).forEach(o=>cols.push(o)); if(!cols.length) colsAll.slice(0,3).forEach(o=>cols.push(o));
   const val=(r,k)=>{ const v=hGet(S,r,k); if(v===undefined||v===null||v==="") return "–"; if(k==="baca"||k==="kerja") return mmss(v); return fmt(hNum(v),k==="dev"?1:k==="ms"?2:0); };
   const mark=(r,k)=>{ const v=hNum(r[k]); if(v===null) return ""; if(k==="baca"&&tB) return v<=tB*60?" ✓":" ✗"; if(k==="kerja"&&tK) return v<=tK*60?" ✓":" ✗"; if(k==="dev"&&tD!==null) return v<=tD?" ✓":" ✗"; return ""; };
   const soal=items.filter(i=>(S.files||[]).some(f=>f.item===i.id)).map(i=>`<div><b>${esc(i.name)}</b>${hImgs((S.files||[]).filter(f=>f.item===i.id),30)}</div>`).join("")+((S.files||[]).some(f=>!f.item)?`<div><b>File sesi</b>${hImgs((S.files||[]).filter(f=>!f.item),30)}</div>`:"");
