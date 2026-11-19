@@ -13,8 +13,11 @@ const H_TPL = [
 ];
 const hSessions = () => Object.values(A.rec).filter(r=>r.kind==="harian"&&!String(r.ref).includes("~")).map(r=>({ id:r.id, ref:r.ref, ...r.data })).sort((a,b)=>(a.date||"").localeCompare(b.date||"")||(a.at||0)-(b.at||0));
 const hRes = (sref,item,rep,cid) => R("harian", sref+"~"+item+"~"+rep, cid) || {};
-const mmss = s => { if(s===undefined||s===null||s===""||isNaN(s)) return ""; s=Math.max(0,Math.round(+s)); return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); };
-const parseT = v => { v=String(v||"").trim().replace(",","."); if(!v) return null; if(v.includes(":")){ const [m,s]=v.split(":"); return Math.round((+m||0)*60+(+s||0)); } if(/^\d+(\.\d+)?$/.test(v)) return Math.round(+v*60); return null; };
+const mmss = s => { if(s===undefined||s===null||s===""||isNaN(s)) return ""; s=Math.max(0,Math.round(+s)); const h=Math.floor(s/3600), m=Math.floor(s%3600/60), d=String(s%60).padStart(2,"0"); return h?h+":"+String(m).padStart(2,"0")+":"+d:m+":"+d; };
+const parseT = v => { v=String(v||"").trim().replace(/[.,](?=\d+$)/,".").replace(/\s+/g,""); if(!v) return null;
+  let m=v.match(/^(?:(\d+)j)?(?:(\d+)m(?:nt)?)?(?:(\d+)d(?:t)?)?$/i); if(m&&(m[1]||m[2]||m[3])) return (+m[1]||0)*3600+(+m[2]||0)*60+(+m[3]||0);
+  if(v.includes(":")){ const p=v.split(":").map(x=>+x||0); if(p.length===3) return Math.round(p[0]*3600+p[1]*60+p[2]); if(p.length===2) return Math.round(p[0]*60+p[1]); return null; }
+  if(/^\d+(\.\d+)?$/.test(v)) return Math.round(+v*60); return null; };
 const hParseX = txt => String(txt||"").split(/\n|;/).map(x=>x.trim()).filter(Boolean).map((l,i)=>{ const m=l.match(/^(.*?)\s*\/\s*(\d+(?:[.,]\d+)?)\s*$/); return { name:(m?m[1]:l).trim(), max:m?hNum(m[2]):null }; });
 const hXText = x => (x||[]).map(e=>e.name+(e.max?" /"+e.max:"")).join("\n");
 function hMergeX(old,parsed){ const used=new Set(); return parsed.map((e,i)=>{ const ex=(old||[]).find(o=>o.name===e.name&&!used.has(o.id)); const id=ex?ex.id:"x"+Date.now().toString(36)+i; used.add(id); return { id, name:e.name, max:e.max }; }); }
@@ -108,7 +111,7 @@ function hSessionView(S){
   const prev=rep>1;
   const cards=A.comps.map(c=>{ const r=hRes(S.ref,item,rep,c.id); const p=prev?hRes(S.ref,item,rep-1,c.id):{}; const key=`${item}~${rep}~${c.id}`; const ro=canWrite()?"":"disabled";
     const cmp=(v,pv,t)=>{ const out=[]; if(v!==null&&v!==undefined&&t) out.push(v<=t?'<span class="chip good">✓ target</span>':'<span class="chip bad">lewat target</span>'); if(prev&&pv!==null&&pv!==undefined&&v!==null&&v!==undefined&&pv>0){ const d=Math.round((v-pv)/pv*100); out.push(`<span class="chip ${d<=0?"good":"warn"}">${d>0?"+":""}${d}% vs P${rep-1}</span>`);} return out.join(""); };
-    const fld=(f,label,extra)=>`<label class="f h-fld"><span class="h-lb">${label}</span><input ${ro} type="${f==="baca"||f==="kerja"?"text":"number"}" ${f==="baca"||f==="kerja"?'inputmode="decimal" placeholder="m:ss"':'inputmode="decimal" min="0" step="'+(f==="dev"?"0.5":"1")+'"'} id="hx-${f}-${c.id}" data-hres="${key}" data-f="${f}" value="${esc(f==="baca"||f==="kerja"?mmss(r[f]):(r[f]??""))}">${extra||""}</label>`;
+    const fld=(f,label,extra)=>`<label class="f h-fld"><span class="h-lb">${label}</span><input ${ro} type="${f==="baca"||f==="kerja"?"text":"number"}" ${f==="baca"||f==="kerja"?'inputmode="decimal" placeholder="m:ss / j:mm:ss"':'inputmode="decimal" min="0" step="'+(f==="dev"?"0.5":"1")+'"'} id="hx-${f}-${c.id}" data-hres="${key}" data-f="${f}" value="${esc(f==="baca"||f==="kerja"?mmss(r[f]):(r[f]??""))}">${extra||""}</label>`;
     return `<div class="entry" style="border-left-color:${compColor(c)}"><div class="spread"><b>${badge(c,true)} ${esc(c.name)}</b><span class="row">${hPhaseBtns(S,item,rep,c,r)}</span></div>
       <div class="grid g3 h-g">${m.includes("baca")?fld("baca","Waktu baca"+(tB?` <small class="muted">target ${mmss(tB*60)}</small>`:""),`<span class="row">${cmp(r.baca,p.baca,tB?tB*60:null)}</span>`):""}${m.includes("kerja")?fld("kerja","Waktu kerja"+(tK?` <small class="muted">target ${mmss(tK*60)}</small>`:""),`<span class="row">${cmp(r.kerja,p.kerja,tK?tK*60:null)}</span>`):""}
       ${m.includes("salah")?fld("salah","Kesalahan",`<span class="row">${cmp(hNum(r.salah),hNum(p.salah),null)}</span>`):""}${m.includes("dev")?fld("dev","Deviasi maks (mm)"+(tD!==null?` <small class="muted">target ≤ ${fmt(tD,1)}</small>`:""),`<span class="row">${hNum(r.dev)!==null&&tD!==null?(hNum(r.dev)<=tD?'<span class="chip good">✓ toleransi</span>':'<span class="chip bad">di luar toleransi</span>'):""}</span>`):""}${m.includes("skor")?fld("skor","Skor (0–100)"):""}${(S.extra||[]).map(x=>fld("x_"+x.id,esc(x.name)+(x.max?" (maks "+x.max+")":""))).join("")}</div>
@@ -117,7 +120,7 @@ function hSessionView(S){
       ${hFiles(S,null,"Foto hasil kerja",key,r)}
       ${r.by?`<div class="note">dicatat ${esc(r.by)}</div>`:""}</div>`; }).join("");
   return head+sel+`<div class="panel"><div class="spread"><div class="label">${esc(iname)} · Percobaan ${rep}</div>${startAll}</div>${hFiles(S,item,"Gambar / file soal: "+iname)}${cards}
-    <p class="note no-print">Waktu bisa dari stopwatch atau diketik manual: <b>3:25</b> (3 menit 25 detik) atau <b>3,5</b> (menit). Data tersimpan otomatis.</p></div>`+hSummary(S);
+    <p class="note no-print">Waktu bisa dari stopwatch atau diketik manual: <b>3:25</b> (3 menit 25 detik), <b>1:15:30</b> (1 jam 15 menit 30 detik), atau <b>95</b> (menit). Lebih dari 1 jam otomatis tampil jam:menit:detik. Data tersimpan otomatis.</p></div>`+hSummary(S);
 }
 
 function hMSBlock(S,key,r){
@@ -265,7 +268,7 @@ function hLapSesi(S,only){
       <div class="r-score"><div><div class="r-small">Peserta</div><div style="font-size:18px;font-weight:700">${esc(c.name)}</div>${c.kelas?`<div class="r-small">kelas ${esc(c.kelas)}</div>`:""}</div>
       <div class="r-kv">Rata-rata seluruh soal: ${[tot.baca!==null?"baca <b>"+mmss(tot.baca)+"</b>":"",tot.kerja!==null?"kerja <b>"+mmss(tot.kerja)+"</b>":"",tot.salah!==null?"kesalahan <b>"+fmt(tot.salah,1)+"</b>/soal":"",tot.dev!==null?"deviasi <b>"+fmt(tot.dev,1)+"</b> mm":"",tot.pct!==null?"kriteria <b>"+Math.round(tot.pct)+"%</b>":"",tot.ms!==null?esc(S.msName||"marking scheme")+" <b>"+Math.round(tot.ms)+"%</b>":""].filter(Boolean).join(" · ")||"belum ada hasil"}<br>Dicatat oleh: ${esc(by||"–")}</div></div>
       <div class="r-sec"><h4><span>Hasil per soal dan percobaan</span></h4><table class="r-tbl"><thead><tr><th>Soal</th><th class="r-n">Perc.</th>${cols.map(o=>`<th class="r-n">${esc(o.l)}</th>`).join("")}</tr></thead><tbody>${rows}${avg}</tbody></table>
-      <div class="r-small" style="text-transform:none">Waktu dalam menit:detik. ✓ = memenuhi target, ✗ = melewati target.</div></div>
+      <div class="r-small" style="text-transform:none">Waktu dalam menit:detik atau jam:menit:detik. ✓ = memenuhi target, ✗ = melewati target.</div></div>
       ${msDet}
       ${tr.length?`<div class="r-sec"><h4><span>Perkembangan percobaan 1 → ${reps}</span></h4><ul class="r-list">${tr.map(t=>`<li>${t}</li>`).join("")}</ul></div>`:""}
       ${notes.length?`<div class="r-sec"><h4><span>Catatan juri</span></h4><ul class="r-list">${notes.join("")}</ul></div>`:""}
@@ -304,7 +307,7 @@ function hSummary(S){
   let trend="";
   if(reps>1) trend=`<div class="row">${A.comps.map(c=>{ const out=[]; ["baca","kerja"].filter(k=>m.includes(k)).forEach(k=>{ const a=hAvg(items.map(i=>hNum(hRes(S.ref,i.id,1,c.id)[k]))), b=hAvg(items.map(i=>hNum(hRes(S.ref,i.id,reps,c.id)[k]))); if(a&&b) { const d=Math.round((b-a)/a*100); out.push(`<span class="chip ${d<=0?"good":"warn"}">${esc(c.name)} · ${short[k]} ${d>0?"+":""}${d}% (P1→P${reps})</span>`);} }); return out.join(""); }).join("")}</div>`;
   return `<div class="panel"><div class="label">Ringkasan sesi</div>${trend}<div class="tbl-wrap"><table class="h-sum"><thead><tr><th rowspan="2">Soal</th><th rowspan="2"></th>${A.comps.map(c=>`<th colspan="${cols.length}" style="border-bottom:3px solid ${compColor(c)}">${esc(c.name)}</th>`).join("")}</tr><tr>${A.comps.map(()=>cols.map(k=>`<th>${short[k]}</th>`).join("")).join("")}</tr></thead><tbody>${rows}${avgRow}</tbody></table></div>
-  <p class="note">Baca/Kerja dalam menit:detik. Dev = deviasi maks (mm). MS = nilai marking scheme. Percobaan berikutnya dibandingkan dengan sebelumnya; turun = lebih cepat/lebih sedikit salah.</p></div>`;
+  <p class="note">Baca/Kerja dalam menit:detik (jam:menit:detik bila lebih dari 1 jam). Dev = deviasi maks (mm). MS = nilai marking scheme. Percobaan berikutnya dibandingkan dengan sebelumnya; turun = lebih cepat/lebih sedikit salah.</p></div>`;
 }
 
 function hExportPanel(all){
@@ -379,7 +382,7 @@ document.addEventListener("change", async e=>{
   if(t.dataset.keepfile&&/^h[sr]:/.test(t.dataset.keepfile)){ const fs=[...t.files]; t.value=""; await hUpload(t.dataset.keepfile,fs); return; }
   if(t.dataset.keepfile==="hxl"){ const f=t.files[0]; t.value=""; if(f) await importPlan(f); return; }
   if(t.dataset.hres){ const S=hCur(); if(!S) return; const f=t.dataset.f; let v=t.value.trim();
-    if(f==="baca"||f==="kerja"){ if(v===""){ v=null; } else { v=parseT(v); if(v===null){ toast("Format waktu: 3:25 atau 3,5 (menit)."); return; } } }
+    if(f==="baca"||f==="kerja"){ if(v===""){ v=null; } else { v=parseT(v); if(v===null){ toast("Format waktu: 3:25 (menit:detik), 1:15:30 (jam:menit:detik), atau 95 (menit)."); return; } } }
     else if(f!=="note"){ v=v===""?"":String(Math.max(0,hNum(v)??0)); }
     const patch={[f]:v}; if((f==="baca"||f==="kerja")&&v!==null){ const cur=hRes(S.ref,...t.dataset.hres.split("~")); if(cur.phase==="baca"||cur.phase==="kerja"){} else patch.phase=cur.phase||"idle"; }
     await hSaveRes(S.ref,t.dataset.hres,patch); return; }
@@ -409,7 +412,7 @@ async function exportHarian(){
   const ses=hSessions().filter(s=>s.date>=from&&s.date<=to);
   if(!ses.length){ toast("Tidak ada sesi pada rentang ini."); return; }
   const n=v=>{ const x=hNum(v); return x===null?"":x; };
-  const H=[["Tanggal","Hari","Jenis penilaian","Sesi","Soal","Percobaan","Peserta","Waktu baca (m:ss)","Baca (detik)","Waktu kerja (m:ss)","Kerja (detik)","Kesalahan","Deviasi maks (mm)","Skor","Target baca (mnt)","Target kerja (mnt)","Kriteria tambahan","Marking scheme","Nilai MS","MS maks","MS (%)","Rincian MS","Catatan","Dicatat oleh"]];
+  const H=[["Tanggal","Hari","Jenis penilaian","Sesi","Soal","Percobaan","Peserta","Waktu baca","Baca (detik)","Waktu kerja","Kerja (detik)","Kesalahan","Deviasi maks (mm)","Skor","Target baca (mnt)","Target kerja (mnt)","Kriteria tambahan","Marking scheme","Nilai MS","MS maks","MS (%)","Rincian MS","Catatan","Dicatat oleh"]];
   const Rk=[["Tanggal","Jenis penilaian","Sesi","Percobaan","Peserta","Rata-rata baca (m:ss)","Rata-rata kerja (m:ss)","Total kesalahan","Rata-rata deviasi (mm)","Rata-rata skor","Soal terisi"]];
   ses.forEach(S=>{ (S.items||[]).forEach(i=>{ for(let x=1;x<=(+S.reps||1);x++) A.comps.forEach(c=>{ const r=hRes(S.ref,i.id,x,c.id); if(!Object.keys(r).length) return;
       H.push([S.date,HARI[dparts(S.date).getDay()],hJenis(S),S.title,i.name,x,c.name,mmss(r.baca),n(r.baca),mmss(r.kerja),n(r.kerja),n(r.salah),n(r.dev),n(r.skor),n(S.tBaca),n(S.tKerja),(S.extra||[]).filter(x=>r["x_"+x.id]!==undefined&&r["x_"+x.id]!=="").map(x=>x.name+": "+r["x_"+x.id]+(x.max?"/"+x.max:"")).join("; "),S.msName||"",(q=>q&&q.filled?q.sum:"")(hMS(S,r)),(q=>q?q.max:"")(hMS(S,r)),(q=>q&&q.pct!==null?Math.round(q.pct):"")(hMS(S,r)),(S.ms||[]).map((a,ai)=>{ const v=(r.ms||{})[a.id]; return v===undefined?null:a.t+(ai+1)+"="+(a.t==="M"?(+v?"Y":"N"):v); }).filter(Boolean).join(" "),r.note||"",r.by||""]); }); });
