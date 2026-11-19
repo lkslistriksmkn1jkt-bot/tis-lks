@@ -183,10 +183,12 @@ document.addEventListener("click", async e=>{
   if(t.dataset.logto){ e.preventDefault(); setLogDate(t.dataset.logto); window.scrollTo(0,0); return; }
   if(t.id==="jXls"){ await exportJurnal(); return; }
   if(t.id==="jPrint"){ const f=document.getElementById("jxFrom").value, to=document.getElementById("jxTo").value; if(!f||!to||f>to){ toast("Periksa rentang tanggal."); return; } ui.jRep={ from:f, to, cid:document.getElementById("jxCid").value }; render(); window.scrollTo(0,0); return; }
+  if(t.dataset.actwho!==undefined){ ui.actWho=t.dataset.actwho; ui.actAll=false; render(); return; }
+  if(t.id==="actMore"){ ui.actAll=!ui.actAll; render(); return; }
   if(t.id==="jRepClose"){ ui.jRep=null; render(); return; }
   if(t.id==="jRepGo"){ window.print(); return; }
   if(t.id==="logXls"){ await exportLog(); return; }
-  if(t.id==="logPrint"){ window.print(); return; }
+  if(t.id==="logPrint"){ ui.actAll=true; ui.actWho=""; render(); setTimeout(()=>window.print(),150); return; }
   if(t.id==="actReload"){ ui.actFor=null; render(); return; }
   if(t.dataset.dellog){ if(confirm("Hapus log harian ini?")){ try{ await Store.deleteRecord(t.dataset.dellog); delete A.rec[t.dataset.dellog]; ui.actFor=null; render(); toast("Log dihapus."); }catch(err){ toast(errMsg(err)); } } return; }
   if(t.id==="qShow"){ ui.quizShow=!ui.quizShow; render(); return; }

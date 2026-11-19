@@ -120,7 +120,7 @@ V.penilaian = () => {
   return `<div><h2>Assessment · Marking Form</h2><p class="lead">Pilih peserta lalu TO. Aspek M: ketik Y atau N lalu Enter. Aspek J: isi nilai 1–3 juri. Tersimpan otomatis.</p></div>
   <div class="panel"><div class="grid g3"><label class="f">Peserta<select id="cidSel">${A.comps.map(x=>`<option value="${x.id}" ${x.id===cid?"selected":""}>${esc(x.name)}</option>`).join("")}</select></label><label class="f">Try out<select id="evSel">${events().map(e=>`<option value="${e.id}" ${e.id===ev.id?"selected":""}>${esc(e.name)} · ${esc(e.label||dlabel(e.date))}</option>`).join("")}</select></label>
     <div><div class="label">Progress</div><div class="row" style="margin-top:6px"><span class="big num" style="font-size:30px">${filled} / ${asp.length}</span><span class="muted">aspek</span></div></div></div>
-    <div class="row"><span class="chip">${esc(ev.focus||"")}</span><span class="chip">Batas ${fmt(ev.limit/60,0)} jam</span>${ui.upl?`<span class="chip warn">Mengunggah ${ui.upl} foto…</span>`:""}${locked?'<span class="chip bad">MARKS LOCKED</span>':'<span class="chip acc">MARKS OPEN</span>'}</div></div>
+    ${ev.focus?`<p class="to-focus">${esc(ev.focus)}</p>`:""}<div class="row"><span class="chip">Batas ${fmt(ev.limit/60,0)} jam</span>${ui.upl?`<span class="chip warn">Mengunggah ${ui.upl} foto…</span>`:""}${locked?'<span class="chip bad">MARKS LOCKED</span>':'<span class="chip acc">MARKS OPEN</span>'}</div></div>
   <div style="display:flex;flex-direction:column;gap:14px">${crits||'<div class="empty">TO ini belum punya kriteria yang diujikan.</div>'}</div>
   <div class="crit"><div class="crit-h"><h3>Foto hasil kerja keseluruhan</h3><span class="num">${photosOf(ev.id,cid,"all").length} foto</span></div>${critExtras(ev,cid,"all",dis,canPhoto)}</div>
   <div class="crit"><div class="crit-h"><h3>Catatan TO & aturan</h3><span class="num ${c&&(c.k3||c.bahan)?"down":""}">${c&&c.k3?"Nilai 0":c&&c.bahan?"−"+c.bahan:"tanpa potongan"}</span></div>
@@ -357,7 +357,11 @@ V.log = () => {
   let act;
   if(A.actErr) act=`<div class="warnbox">${isAdmin()?"Aktivitas otomatis belum aktif. Jalankan berkas <b>update-log.sql</b> sekali di Supabase (SQL Editor).":"Aktivitas otomatis belum aktif. Minta admin memperbarui database."}</div>`;
   else if(ui.actFor!==key||!A.act) act='<p class="muted">Memuat…</p>';
-  else act=A.act.length?`<div class="tbl-wrap"><table><thead><tr><th>Jam</th><th>Oleh</th><th>Kegiatan di aplikasi</th></tr></thead><tbody>${A.act.map(a=>`<tr><td class="num">${hhmm(a.at)}</td><td>${esc(pname(a.user_id))}</td><td>${esc(actText(a))}</td></tr>`).join("")}</tbody></table></div>`:'<p class="muted">Tidak ada aktivitas di aplikasi pada tanggal ini.</p>';
+  else if(!A.act.length) act='<p class="muted">Tidak ada aktivitas di aplikasi pada tanggal ini.</p>';
+  else { const who={}; A.act.forEach(x=>who[x.user_id]=(who[x.user_id]||0)+1); const fw=ui.actWho&&who[ui.actWho]?ui.actWho:""; const L=A.act.filter(x=>!fw||x.user_id===fw); const LIM=8; const show=ui.actAll?L:L.slice(0,LIM);
+    act=`<div class="subnav no-print" style="margin-bottom:8px"><button data-actwho="" aria-pressed="${!fw}">Semua · ${A.act.length}</button>${Object.entries(who).sort((a,b)=>b[1]-a[1]).map(([u,n])=>`<button data-actwho="${esc(u)}" aria-pressed="${fw===u}">${esc(pname(u))} · ${n}</button>`).join("")}</div>
+    <div class="tbl-wrap"><table><thead><tr><th>Jam</th><th>Oleh</th><th>Kegiatan di aplikasi</th></tr></thead><tbody>${show.map(a=>`<tr><td class="num">${hhmm(a.at)}</td><td>${esc(pname(a.user_id))}</td><td>${esc(actText(a))}</td></tr>`).join("")}</tbody></table></div>
+    ${L.length>LIM?`<div class="row no-print" style="margin-top:8px"><button class="btn sm" id="actMore">${ui.actAll?"Tampilkan lebih sedikit":`Tampilkan semua (${L.length})`}</button><span class="note">${ui.actAll?"":`Menampilkan ${LIM} aktivitas terbaru.`}</span></div>`:""}`; }
   const staff=(A.profiles||[]).filter(p=>p.role==="juri"||p.role==="admin");
   const days=[...new Set(sched().filter(s=>s.kind==="day"&&s.date<=todayId()).map(s=>s.date))].sort().reverse().slice(0,10);
   const rekap=staff.length&&days.length?`<div class="panel"><div class="label">Rekap pengisian log · 10 hari latihan terakhir</div><div class="tbl-wrap"><table><thead><tr><th>Tanggal</th>${staff.map(p=>`<th>${esc(p.name||p.email)}</th>`).join("")}</tr></thead><tbody>${days.map(x=>`<tr><td><a href="#log" data-logto="${x}">${dlabel(x)}</a></td>${staff.map(p=>{ const l=R("log",x+"~"+p.id); return `<td>${l?`<span class="chip good">✓ ${esc(l.start||"")}${l.end?"–"+esc(l.end):""}</span>`:'<span class="chip">–</span>'}</td>`; }).join("")}</tr>`).join("")}</tbody></table></div></div>`:"";
@@ -370,7 +374,7 @@ V.log = () => {
   <div class="panel"><div class="label">${dlabel(d,true)} ${d.slice(0,4)} · jadwal</div>${jadwal}</div>
   ${form}
   <div class="panel"><div class="label">Log asisten</div>${cards}</div>
-  <div class="panel"><div class="spread"><div class="label">Aktivitas di aplikasi (otomatis)</div><button class="btn sm no-print" id="actReload">Muat ulang</button></div>${act}</div>
+  <div class="panel"><div class="spread"><div class="label">Aktivitas di aplikasi (otomatis) · hanya ${dlabel(d)}</div><button class="btn sm no-print" id="actReload">Muat ulang</button></div>${act}</div>
   ${rekap}`;
 };
 
