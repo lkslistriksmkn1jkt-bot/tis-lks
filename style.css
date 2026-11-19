@@ -311,3 +311,12 @@ table.h-sum tr.tot td{border-top:2px solid var(--line)}
 .h-fld .h-lb{min-height:2.7em;display:flex;align-items:flex-end;gap:6px;flex-wrap:wrap;line-height:1.3}
 .h-fld .h-lb small{font-size:12px;font-family:var(--f-mono)}
 .h-fld .row{min-height:0}
+/* Laporan penilaian harian */
+.h-rph{grid-template-columns:repeat(3,minmax(0,1fr))}
+.h-rph img{object-fit:contain!important;background:#fff}
+.h-soal{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.h-soal .h-rph{grid-template-columns:1fr}
+.h-page{break-before:page;page-break-before:always;margin-top:24px;padding-top:12px;border-top:2px dashed #bbb}
+@media print{.h-page{margin-top:0;padding-top:0;border-top:none}}
+.paper .r-sign{break-inside:avoid;page-break-inside:avoid}
+.h-soal .r-ph{margin:2px 0}

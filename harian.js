@@ -34,10 +34,13 @@ V.harian = () => {
   const tabs=list.length>1?`<div class="subnav no-print">${list.map(s=>`<button data-hses="${esc(s.ref)}" aria-pressed="${S&&S.ref===s.ref}">${esc(s.title)}</button>`).join("")}</div>`:"";
   const vw=`<div class="subnav no-print" style="margin-bottom:4px"><button data-hview="sesi" aria-pressed="${ui.hView!=="rekap"}">Sesi per hari</button><button data-hview="rekap" aria-pressed="${ui.hView==="rekap"}">Rekap per jenis penilaian</button></div>`;
   const intro=`<div><h2>Penilaian harian</h2><p class="lead">Latihan pendek yang diukur setiap hari: beberapa soal, diulang, dicatat waktu baca, waktu kerja, dan ketelitiannya. Terpisah dari Try Out (mini proyek yang dinilai lengkap dari awal sampai akhir).</p></div>`;
-  if(ui.hView==="rekap") return intro+vw+hRekap(all)+hExportPanel(all);
+  if(ui.hPrint){ const P=ui.hPrint; const S=P.type==="sesi"?all.find(x=>x.ref===P.ref):null;
+    const body=P.type==="sesi"?(S?hLapSesi(S,P.cid):'<p>Sesi tidak ditemukan.</p>'):hLapRekap(P.from,P.to,P.cid);
+    return `<div class="row no-print" style="margin-bottom:10px"><button class="btn sm" id="hPrClose">‹ Kembali</button><button class="btn sm primary" id="hPrGo">🖨 Cetak / Simpan PDF</button><span class="note">Di jendela cetak pilih <b>Simpan sebagai PDF</b>, kertas A4.</span></div><div class="paper-wrap">${body}</div>`; }
+  if(ui.hView==="rekap") return intro+vw+hLapPanel(all,"rekap")+hRekap(all)+hExportPanel(all);
   return `${intro}${vw}
   ${nav}${editing?hFormView(editing,day):""}${tabs}
-  ${S?hSessionView(S):(editing?"":`<div class="empty">Belum ada sesi penilaian harian pada ${dlabel(day,true)}.${canWrite()?' Ketuk <b>+ Sesi baru</b> untuk membuat.':""}</div>`)}
+  ${S?hSessionView(S)+hLapPanel(all,"sesi",S):(editing?"":`<div class="empty">Belum ada sesi penilaian harian pada ${dlabel(day,true)}.${canWrite()?' Ketuk <b>+ Sesi baru</b> untuk membuat.':""}</div>`)}
   ${hExportPanel(all)}`;
 };
 
@@ -159,6 +162,66 @@ function hRekap(all){
   +`<p class="note">Rata-rata dari semua soal dan percobaan. B = baca, K = kerja (menit:detik), S = kesalahan per soal, D = deviasi maks, % = rata-rata kriteria tambahan terhadap nilai maksimumnya.</p>`;
 }
 
+function hLapPanel(all,mode,S){
+  const sel=`<label class="f" style="flex:1;min-width:160px">Peserta<select id="hPrCid"><option value="">Semua peserta</option>${A.comps.map(c=>`<option value="${c.id}" ${ui.hPrCid===c.id?"selected":""}>${esc(c.name)}</option>`).join("")}</select></label>`;
+  if(mode==="sesi") return `<div class="panel no-print"><div class="label">Laporan PDF sesi ini</div><div class="row">${sel}</div><div class="row"><button class="btn sm primary" data-hlap="sesi" data-ref="${esc(S.ref)}">📄 Tampilkan laporan</button></div><p class="note">Berisi data sesi, tabel hasil setiap soal dan percobaan, perkembangan, catatan juri, foto soal dan hasil kerja, serta kolom tanda tangan. Satu halaman per peserta.</p></div>`;
+  return `<div class="panel no-print"><div class="label">Laporan PDF rekap periode</div><div class="row"><label class="f" style="flex:1;min-width:140px">Dari<input type="date" id="hpFrom" value="${ui.hpFrom||(all.length?all[0].date:todayId())}"></label><label class="f" style="flex:1;min-width:140px">Sampai<input type="date" id="hpTo" value="${ui.hpTo||(all.length?all[all.length-1].date:todayId())}"></label>${sel}</div><div class="row"><button class="btn sm primary" data-hlap="rekap">📄 Tampilkan laporan rekap</button></div></div>`;
+}
+const hHead=(title,sub)=>`<div class="r-head"><div><div class="r-small">Training Information System (TIS)</div><div class="r-small">LKS SMK · Electrical Installations${CFG.SCHOOL?" · "+esc(CFG.SCHOOL):""}</div></div><div class="r-title">${title}${sub?`<div class="r-small" style="text-align:right">${sub}</div>`:""}</div></div>`;
+const hFoot=()=>`<div class="r-foot">TIS ${VERSION} · dicetak ${new Date().toLocaleString("id-ID",{day:"numeric",month:"long",year:"numeric",hour:"2-digit",minute:"2-digit"})}</div>`;
+const hImgs=(fs,h)=>{ const im=(fs||[]).filter(f=>f.type!=="application/pdf"); const pd=(fs||[]).filter(f=>f.type==="application/pdf");
+  return (im.length?`<div class="r-ph h-rph">${im.map(f=>{ const u=photoUrl(f.path); return `<figure>${u&&u!=="err"?`<img src="${u}" style="height:${h||45}mm">`:`<div style="height:${h||45}mm;border:1px solid #999;display:grid;place-items:center">memuat…</div>`}<figcaption>${esc(f.name||"")}</figcaption></figure>`; }).join("")}</div>`:"")+(pd.length?`<div class="r-small">File PDF: ${pd.map(f=>esc(f.name)).join(", ")}</div>`:""); };
+function hLapSesi(S,only){
+  const items=S.items||[], reps=+S.reps||1, m=S.m||[], X=S.extra||[];
+  const tB=hNum(S.tBaca), tK=hNum(S.tKerja), tD=hNum(S.tDev);
+  const lab={baca:"Baca",kerja:"Kerja",salah:"Salah",dev:"Dev (mm)",skor:"Skor"};
+  const cols=m.map(k=>({k,l:lab[k]})).concat(X.map(x=>({k:"x_"+x.id,l:x.name+(x.max?" /"+x.max:"")})));
+  const val=(r,k)=>{ const v=r[k]; if(v===undefined||v===null||v==="") return "–"; if(k==="baca"||k==="kerja") return mmss(v); return fmt(hNum(v),k==="dev"?1:0); };
+  const mark=(r,k)=>{ const v=hNum(r[k]); if(v===null) return ""; if(k==="baca"&&tB) return v<=tB*60?" ✓":" ✗"; if(k==="kerja"&&tK) return v<=tK*60?" ✓":" ✗"; if(k==="dev"&&tD!==null) return v<=tD?" ✓":" ✗"; return ""; };
+  const soal=items.filter(i=>(S.files||[]).some(f=>f.item===i.id)).map(i=>`<div><b>${esc(i.name)}</b>${hImgs((S.files||[]).filter(f=>f.item===i.id),30)}</div>`).join("")+((S.files||[]).some(f=>!f.item)?`<div><b>File sesi</b>${hImgs((S.files||[]).filter(f=>!f.item),30)}</div>`:"");
+  const meta=`<table class="r-meta"><tr><td>Tanggal</td><td><b>${dlabel(S.date,true)} ${S.date.slice(0,4)}</b></td></tr><tr><td>Jenis penilaian</td><td><b>${esc(hJenis(S))}</b></td></tr><tr><td>Sesi</td><td><b>${esc(S.title)}</b> · ${items.length} soal (${items.map(i=>esc(i.name)).join(", ")}) × ${reps} percobaan</td></tr>
+    <tr><td>Target</td><td>${[tB?"baca ≤ "+mmss(tB*60):"",tK?"kerja ≤ "+mmss(tK*60):"",tD!==null?"deviasi ≤ "+fmt(tD,1)+" mm":""].filter(Boolean).join(" · ")||"–"}</td></tr>${S.note?`<tr><td>Instruksi</td><td>${esc(S.note)}</td></tr>`:""}<tr><td>Musim</td><td>${esc(A.season.name)}</td></tr></table>`;
+  const comps=A.comps.filter(c=>!only||c.id===only);
+  const pages=comps.map((c,ci)=>{
+    const rows=items.map(i=>Array.from({length:reps},(_,x)=>{ const r=hRes(S.ref,i.id,x+1,c.id); return `<tr><td>${x===0?`<b>${esc(i.name)}</b>`:""}</td><td class="r-n">P${x+1}</td>${cols.map(o=>`<td class="r-n">${val(r,o.k)}${mark(r,o.k)}</td>`).join("")}</tr>`; }).join("")).join("");
+    const avg=Array.from({length:reps},(_,x)=>{ const st=hStats({...S},c.id,x+1); return `<tr class="r-tot"><td>${x===0?"Rata-rata":""}</td><td class="r-n">P${x+1}</td>${cols.map(o=>{ let v; if(o.k.startsWith("x_")) v=hAvg(items.map(i=>hNum(hRes(S.ref,i.id,x+1,c.id)[o.k]))); else v=st[o.k]; return `<td class="r-n">${v===null||v===undefined?"–":(o.k==="baca"||o.k==="kerja"?mmss(v):fmt(v,o.k==="dev"||o.k==="salah"?1:0))}</td>`; }).join("")}</tr>`; }).join("");
+    const f=hStats(S,c.id,1), l=hStats(S,c.id,reps); const tr=[];
+    if(reps>1){ [["baca","Waktu baca"],["kerja","Waktu kerja"]].forEach(([k,n])=>{ if(f[k]&&l[k]!==null){ const d=Math.round((l[k]-f[k])/f[k]*100); tr.push(`${n}: ${mmss(f[k])} → ${mmss(l[k])} (<b>${d>0?"+":""}${d}%</b>${d<0?", lebih cepat":d>0?", lebih lambat":""})`); } });
+      if(f.salah!==null&&l.salah!==null) tr.push(`Kesalahan per soal: ${fmt(f.salah,1)} → ${fmt(l.salah,1)}`); if(f.dev!==null&&l.dev!==null) tr.push(`Deviasi rata-rata: ${fmt(f.dev,1)} → ${fmt(l.dev,1)} mm`); if(f.pct!==null&&l.pct!==null) tr.push(`Kriteria tambahan: ${Math.round(f.pct)}% → ${Math.round(l.pct)}%`); }
+    const tot=hStats(S,c.id);
+    const notes=[]; const photos=[]; items.forEach(i=>{ for(let x=1;x<=reps;x++){ const r=hRes(S.ref,i.id,x,c.id); if(r.note) notes.push(`<li><b>${esc(i.name)} P${x}:</b> ${esc(r.note)}</li>`); (r.files||[]).forEach(fl=>photos.push({...fl,name:i.name+" · P"+x})); } });
+    const by=[...new Set(items.flatMap(i=>Array.from({length:reps},(_,x)=>hRes(S.ref,i.id,x+1,c.id).by).filter(Boolean)))].join(", ");
+    return `<div class="${ci?"h-page":""}">${hHead("LAPORAN PENILAIAN HARIAN",esc(hJenis(S)))}${meta}
+      <div class="r-score"><div><div class="r-small">Peserta</div><div style="font-size:18px;font-weight:700">${esc(c.name)}</div>${c.kelas?`<div class="r-small">kelas ${esc(c.kelas)}</div>`:""}</div>
+      <div class="r-kv">Rata-rata seluruh soal: ${[tot.baca!==null?"baca <b>"+mmss(tot.baca)+"</b>":"",tot.kerja!==null?"kerja <b>"+mmss(tot.kerja)+"</b>":"",tot.salah!==null?"kesalahan <b>"+fmt(tot.salah,1)+"</b>/soal":"",tot.dev!==null?"deviasi <b>"+fmt(tot.dev,1)+"</b> mm":"",tot.pct!==null?"kriteria <b>"+Math.round(tot.pct)+"%</b>":""].filter(Boolean).join(" · ")||"belum ada hasil"}<br>Dicatat oleh: ${esc(by||"–")}</div></div>
+      <div class="r-sec"><h4><span>Hasil per soal dan percobaan</span></h4><table class="r-tbl"><thead><tr><th>Soal</th><th class="r-n">Perc.</th>${cols.map(o=>`<th class="r-n">${esc(o.l)}</th>`).join("")}</tr></thead><tbody>${rows}${avg}</tbody></table>
+      <div class="r-small" style="text-transform:none">Waktu dalam menit:detik. ✓ = memenuhi target, ✗ = melewati target.</div></div>
+      ${tr.length?`<div class="r-sec"><h4><span>Perkembangan percobaan 1 → ${reps}</span></h4><ul class="r-list">${tr.map(t=>`<li>${t}</li>`).join("")}</ul></div>`:""}
+      ${notes.length?`<div class="r-sec"><h4><span>Catatan juri</span></h4><ul class="r-list">${notes.join("")}</ul></div>`:""}
+      ${soal?`<div class="r-sec"><h4><span>Gambar soal</span></h4><div class="h-soal">${soal}</div></div>`:""}
+      ${photos.length?`<div class="r-sec"><h4><span>Foto hasil kerja</span></h4>${hImgs(photos,40)}</div>`:""}
+      <div class="r-sign"><div><div class="r-line"></div>Juri / Pembina</div><div><div class="r-line"></div>Asisten</div><div><div class="r-line"></div>Peserta</div></div>${hFoot()}</div>`; }).join("");
+  return `<div class="paper">${pages}</div>`;
+}
+function hLapRekap(from,to,only){
+  const ses=hSessions().filter(s=>s.date>=from&&s.date<=to); const comps=A.comps.filter(c=>!only||c.id===only);
+  if(!ses.length) return `<div class="paper">${hHead("REKAP PENILAIAN HARIAN")}<p>Tidak ada sesi pada ${from} s.d. ${to}.</p></div>`;
+  const g={}; ses.forEach(S=>(g[hJenis(S)]=g[hJenis(S)]||[]).push(S));
+  const order=Object.keys(g).sort((a,b)=>{ const ia=H_JENIS.indexOf(a), ib=H_JENIS.indexOf(b); return (ia<0?99:ia)-(ib<0?99:ib)||a.localeCompare(b); });
+  const F=(v,k)=>v===null||v===undefined?"–":(k==="t"?mmss(v):k==="p"?Math.round(v)+"%":fmt(v,1));
+  const secs=order.map(j=>{ const ss=g[j];
+    const sum=comps.map(c=>{ const st=ss.map(S=>hStats(S,c.id)).filter(x=>x.n); if(!st.length) return `<tr><td>${esc(c.name)}</td><td colspan="8">belum ada hasil</td></tr>`; const av=k=>hAvg(st.map(x=>x[k])); const a=st[0], b=st[st.length-1]; const d=(a.kerja&&b.kerja&&st.length>1)?Math.round((b.kerja-a.kerja)/a.kerja*100):null;
+      return `<tr><td><b>${esc(c.name)}</b></td><td class="r-n">${st.length}</td><td class="r-n">${F(av("baca"),"t")}</td><td class="r-n">${F(av("kerja"),"t")}</td><td class="r-n">${F(av("salah"))}</td><td class="r-n">${F(av("dev"))}</td><td class="r-n">${F(av("pct"),"p")}</td><td class="r-n">${st.length>1?F(a.kerja,"t")+" → "+F(b.kerja,"t"):"–"}</td><td class="r-n">${d===null?"–":(d>0?"+":"")+d+"%"}</td></tr>`; }).join("");
+    const hist=ss.map(S=>`<tr><td>${dlabel(S.date)}</td><td>${esc(S.title)}</td>${comps.map(c=>{ const x=hStats(S,c.id); return `<td class="r-n">${x.n?[x.baca!==null?"B "+mmss(x.baca):"",x.kerja!==null?"K "+mmss(x.kerja):"",x.salah!==null?"S "+fmt(x.salah,1):"",x.dev!==null?"D "+fmt(x.dev,1):"",x.pct!==null?Math.round(x.pct)+"%":""].filter(Boolean).join(" · "):"–"}</td>`; }).join("")}</tr>`).join("");
+    return `<div class="r-sec"><h4><span>${esc(j)}</span><span>${ss.length} sesi</span></h4>
+      <table class="r-tbl"><thead><tr><th>Peserta</th><th class="r-n">Sesi</th><th class="r-n">Baca</th><th class="r-n">Kerja</th><th class="r-n">Salah/soal</th><th class="r-n">Dev</th><th class="r-n">Kriteria</th><th class="r-n">Kerja awal → akhir</th><th class="r-n">Δ</th></tr></thead><tbody>${sum}</tbody></table>
+      <table class="r-tbl"><thead><tr><th>Tanggal</th><th>Sesi</th>${comps.map(c=>`<th>${esc(c.name)}</th>`).join("")}</tr></thead><tbody>${hist}</tbody></table></div>`; }).join("");
+  return `<div class="paper">${hHead("REKAP PENILAIAN HARIAN",dlabel(from,true)+" "+from.slice(0,4)+" – "+dlabel(to,true)+" "+to.slice(0,4))}
+    <table class="r-meta"><tr><td>Periode</td><td><b>${dlabel(from,true)} ${from.slice(0,4)} s.d. ${dlabel(to,true)} ${to.slice(0,4)}</b></td></tr><tr><td>Peserta</td><td>${comps.map(c=>esc(c.name)).join(", ")}</td></tr><tr><td>Jumlah sesi</td><td>${ses.length} sesi · ${order.length} jenis penilaian</td></tr><tr><td>Musim</td><td>${esc(A.season.name)}</td></tr></table>
+    ${secs}<div class="r-small" style="text-transform:none;margin-top:6px">Rata-rata dari semua soal dan percobaan. B = baca, K = kerja (menit:detik), S = kesalahan per soal, D = deviasi maks (mm), % = kriteria tambahan terhadap nilai maksimum. Δ negatif = waktu kerja makin cepat.</div>
+    <div class="r-sign"><div><div class="r-line"></div>Pembina</div><div><div class="r-line"></div>Asisten</div></div>${hFoot()}</div>`;
+}
+
 function hSummary(S){
   const items=S.items||[], reps=+S.reps||1, m=S.m||[];
   const short={baca:"Baca",kerja:"Kerja",salah:"Salah",dev:"Dev",skor:"Skor"};
@@ -222,6 +285,9 @@ document.addEventListener("click", async e=>{
     await hSaveRes(S.ref,t.dataset.hgo,hPhase(cur,t.dataset.to)); return; }
   if(t.dataset.hall){ const S=hCur(); if(!S) return; const [item,rep]=t.dataset.hall.split("~");
     for(const c of A.comps){ const cur=hRes(S.ref,item,rep,c.id); if((cur.phase||"idle")==="idle") await hSaveRes(S.ref,`${item}~${rep}~${c.id}`,hPhase(cur,t.dataset.to)); } return; }
+  if(t.dataset.hlap){ ui.hPrint=t.dataset.hlap==="sesi"?{type:"sesi",ref:t.dataset.ref,cid:ui.hPrCid||""}:{type:"rekap",from:document.getElementById("hpFrom").value,to:document.getElementById("hpTo").value,cid:ui.hPrCid||""}; render(); window.scrollTo(0,0); return; }
+  if(t.id==="hPrClose"){ ui.hPrint=null; render(); return; }
+  if(t.id==="hPrGo"){ window.print(); return; }
   if(t.dataset.hview){ ui.hView=t.dataset.hview; render(); return; }
   if(t.dataset.hfdel){ const [tg,fid]=t.dataset.hfdel.split("|"); await hDelFile(tg,fid); return; }
   if(t.id==="hXls"){ exportHarian(); return; }
@@ -230,7 +296,8 @@ document.addEventListener("click", async e=>{
 document.addEventListener("change", async e=>{
   const t=e.target;
   if(t.id==="hDay"){ if(t.value){ ui.hDay=t.value; ui.hSes=null; render(); } return; }
-  if(t.id==="hxFrom"||t.id==="hxTo"){ ui[t.id]=t.value; return; }
+  if(t.id==="hxFrom"||t.id==="hxTo"||t.id==="hpFrom"||t.id==="hpTo"){ ui[t.id]=t.value; return; }
+  if(t.id==="hPrCid"){ ui.hPrCid=t.value; return; }
   if(t.dataset.keepfile&&/^h[sr]:/.test(t.dataset.keepfile)){ const fs=[...t.files]; t.value=""; await hUpload(t.dataset.keepfile,fs); return; }
   if(t.dataset.keepfile==="hxl"){ const f=t.files[0]; t.value=""; if(f) await importPlan(f); return; }
   if(t.dataset.hres){ const S=hCur(); if(!S) return; const f=t.dataset.f; let v=t.value.trim();
