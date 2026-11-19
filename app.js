@@ -3,7 +3,7 @@
    Data: Supabase (bila config.js diisi) atau mode demo (localStorage)
    ===================================================================== */
 "use strict";
-const VERSION = "v2027.29";
+const VERSION = "v2027.30";
 const CFG = window.TIS_CONFIG || {};
 const DEMO = !CFG.SUPABASE_URL || !CFG.SUPABASE_ANON_KEY;
 const COLORS = ["#1D5FC4","#D35A22","#2F9A3F","#8E44AD","#B07A00","#0E8C8C","#C2372B","#5A6773"];
@@ -141,6 +141,9 @@ const evById = id => events().find(e=>e.id===id);
 const critMax = id => { const c = scheme().find(x=>x.id==id); return c ? c.subs.reduce((a,s)=>a+(+s.max||0),0) : 0; };
 const evDays = ev => Math.max(1, Math.min(3, Math.round(+(ev&&ev.days)||1)));
 const aspDay = (ev, id) => { const d=+((ev&&ev.dayOf)||{})[id]; return d>=1&&d<=evDays(ev)?d:1; };
+const dayLimit = (ev, n) => evDays(ev)>1 ? (+ev["lim"+n]||null) : (+ev.limit||null);
+const jamTxt = m => { m=+m||0; const h=Math.floor(m/60), r=m%60; return h&&r?`${h} jam ${r} mnt`:h?`${h} jam`:`${r} mnt`; };
+const evLimitText = ev => { const nd=evDays(ev); if(nd>1&&Array.from({length:nd},(_,i)=>dayLimit(ev,i+1)).some(Boolean)) return Array.from({length:nd},(_,i)=>`H${i+1} ${dayLimit(ev,i+1)?jamTxt(dayLimit(ev,i+1)):"–"}`).join(" · "); return jamTxt(ev.limit)+(nd>1?` · ${nd} hari`:""); };
 const evSkip = ev => new Set((ev&&ev.skip)||[]);
 const evSubs = (ev, cr) => { const k=evSkip(ev); return cr.subs.filter(s=>!k.has(s.id)); };
 const evCritMax = (ev, id) => { const c = scheme().find(x=>x.id==id); return c ? evSubs(ev,c).reduce((a,s)=>a+(+s.max||0),0) : 0; };
