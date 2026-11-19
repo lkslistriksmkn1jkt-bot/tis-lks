@@ -29,10 +29,10 @@ V.pengaturan = () => {
   }
   else if(ui.set==="to"){
     const crits=scheme();
-    body=`<p class="lead">Atur try out: tanggal, batas waktu, dan kriteria yang diujikan. ID dipakai sebagai kunci nilai, jangan diubah setelah TO dinilai. Bisa juga lewat Excel (menu <b>Excel</b>).</p>
+    body=`${ui.aspEv!=null&&E.events[ui.aspEv]?aspPicker(E.events[ui.aspEv],ui.aspEv):""}<p class="lead">Atur try out: tanggal, batas waktu, dan kriteria yang diujikan. ID dipakai sebagai kunci nilai, jangan diubah setelah TO dinilai. Bisa juga lewat Excel (menu <b>Excel</b>).</p>
     <div class="tbl-wrap"><table class="ed-tbl" style="min-width:1150px"><thead><tr><th>ID</th><th>Nama</th><th>Fase</th><th>Tanggal</th><th>Label tanggal</th><th>Batas (menit)</th><th>Kriteria diujikan</th><th>Fokus</th><th></th></tr></thead><tbody>
     ${E.events.map((e,i)=>`<tr><td data-l="ID">${inp(`events.${i}.id`,"text",'style="width:70px"')}</td><td data-l="Nama">${inp(`events.${i}.name`,"text",'style="width:80px"')}</td><td data-l="Fase">${inp(`events.${i}.fase`,"text",'style="width:50px"')}</td><td data-l="Tanggal">${inp(`events.${i}.date`,"date")}</td><td data-l="Label tanggal">${inp(`events.${i}.label`)}</td><td data-l="Batas (menit)">${inp(`events.${i}.limit`,"number",'style="width:80px"')}</td>
-      <td data-l="Kriteria diujikan"><div class="scope-ck">${crits.map(c=>`<label><input type="checkbox" data-scope="${i}" data-crit="${esc(c.id)}" ${(e.scope||[]).map(String).includes(String(c.id))?"checked":""}>${esc(c.id)}</label>`).join("")}</div></td><td data-l="Fokus"><textarea class="focus-ta" data-e="events.${i}.focus" rows="3">${esc(e.focus||"")}</textarea></td><td><button class="btn sm danger" data-rm="events.${i}">Hapus TO ini</button></td></tr>`).join("")}</tbody></table></div>
+      <td data-l="Kriteria diujikan"><div class="scope-ck">${crits.map(c=>`<label><input type="checkbox" data-scope="${i}" data-crit="${esc(c.id)}" ${(e.scope||[]).map(String).includes(String(c.id))?"checked":""}>${esc(c.id)}</label>`).join("")}</div>${(e.scope||[]).length?`<button type="button" class="btn sm" data-aspev="${i}" style="margin-top:6px">Pilih aspek${(e.skip||[]).length?` · ${aspCount(e)} dipakai`:" · semua"}</button>`:""}</td><td data-l="Fokus"><textarea class="focus-ta" data-e="events.${i}.focus" rows="3">${esc(e.focus||"")}</textarea></td><td><button class="btn sm danger" data-rm="events.${i}">Hapus TO ini</button></td></tr>`).join("")}</tbody></table></div>
     <div><button class="btn" data-add="events">+ Tambah TO</button></div>${saveBar()}`;
   }
   else if(ui.set==="jadwal"){
@@ -247,7 +247,7 @@ async function applyExcel(){
   if(!confirm("Ganti "+pick.map(k=>label[k]).join(", ")+" di musim "+A.season.name+" dengan isi Excel?")) return;
   const cfg=clone(A.cfg);
   if(pick.includes("jadwal")) cfg.schedule=X.jadwal.rows;
-  if(pick.includes("to")) cfg.events=fixLabels(X.to.rows);
+  if(pick.includes("to")) cfg.events=fixLabels(X.to.rows).map(e=>{ const o=(A.cfg.events||[]).find(x=>x.id===e.id); return o&&o.skip&&!e.skip?{...e,skip:o.skip}:e; });
   if(pick.includes("scheme")) cfg.scheme=X.scheme.rows;
   if(pick.includes("gate")) cfg.gates=X.gate.rows;
   const ok=await saveSeasonCfg(cfg,"Isi Excel diterapkan dan disimpan."); if(ok){ ui.xl=null; ui.editKey=null; render(); }
@@ -274,3 +274,20 @@ async function applyStdScheme(undo){
   ui.edit=null; render();
 }
 document.addEventListener("click", e=>{ const t=e.target.closest("button"); if(!t) return; if(t.id==="stdApply") applyStdScheme(false); if(t.id==="stdUndo") applyStdScheme(true); });
+
+/* ---------- Pilih aspek per TO ---------- */
+function aspCount(e){ const k=new Set(e.skip||[]); return scheme().filter(c=>(e.scope||[]).map(String).includes(String(c.id))).reduce((a,c)=>a+c.subs.filter(s=>!k.has(s.id)).length,0); }
+function aspPicker(e,i){
+  const k=new Set(e.skip||[]); const crits=scheme().filter(c=>(e.scope||[]).map(String).includes(String(c.id)));
+  const pts=crits.reduce((a,c)=>a+c.subs.filter(s=>!k.has(s.id)).reduce((x,s)=>x+(+s.max||0),0),0);
+  const body=crits.map(c=>{ const groups={}; c.subs.forEach(s=>{ const g=s.sc||c.id; (groups[g]=groups[g]||[]).push(s); });
+    return `<div class="lib-g"><div class="lib-h">${esc(c.id)} · ${esc(c.name)}</div>${Object.entries(groups).map(([g,ss])=>{ const on=ss.filter(s=>!k.has(s.id)).length;
+      return `<details class="asp-g" ${on&&on<ss.length?"open":""}><summary><label class="lib-i" style="display:inline-flex"><input type="checkbox" data-asksc="${i}|${esc(g)}" ${on===ss.length?"checked":""} ${on&&on<ss.length?'data-ind="1"':""}> <b>${esc(g)}</b> ${esc(ss[0].scName||"")} <span class="muted">· ${on}/${ss.length} aspek · ${fmt(ss.filter(s=>!k.has(s.id)).reduce((a,s)=>a+(+s.max||0),0))}</span></label></summary>
+      ${ss.map(s=>`<label class="lib-i" style="padding-left:28px"><input type="checkbox" data-askip="${i}|${esc(s.id)}" ${k.has(s.id)?"":"checked"}> <span class="muted">${esc(s.id)}</span> ${esc(s.d)} <span class="muted">· ${s.t} · ${fmt(s.max)}</span></label>`).join("")}</details>`; }).join("")}</div>`; }).join("");
+  return `<div class="lib" style="margin-bottom:12px"><div class="spread"><b>Aspek yang dinilai di ${esc(e.name||e.id)}</b><button type="button" class="btn sm" data-aspev="">Selesai</button></div>
+    <p class="note">Hilangkan centang aspek yang tidak dikerjakan di TO ini. Skor tetap dihitung skala 100 dari aspek yang dipakai. Saat ini <b>${aspCount(e)} aspek, ${fmt(pts)} poin</b>. Klik nama sub-kriteria untuk melihat aspeknya. Jangan lupa <b>Simpan</b> di bawah.</p>${body}</div>`;
+}
+document.addEventListener("click", e=>{ const t=e.target.closest("[data-aspev]"); if(!t) return; ui.aspEv=t.dataset.aspev===""?null:+t.dataset.aspev; render(); if(ui.aspEv!=null) window.scrollTo(0,0); });
+document.addEventListener("change", e=>{ const t=e.target;
+  if(t.dataset.askip){ const [i,id]=t.dataset.askip.split("|"); const ev=ui.edit.events[+i]; const k=new Set(ev.skip||[]); if(t.checked) k.delete(id); else k.add(id); ev.skip=[...k]; ui.dirty=true; render(); return; }
+  if(t.dataset.asksc){ const [i,g]=t.dataset.asksc.split("|"); const ev=ui.edit.events[+i]; const k=new Set(ev.skip||[]); scheme().forEach(c=>c.subs.forEach(s=>{ if((s.sc||c.id)===g&&(ev.scope||[]).map(String).includes(String(c.id))){ if(t.checked) k.delete(s.id); else k.add(s.id); } })); ev.skip=[...k]; ui.dirty=true; render(); return; } });

@@ -136,17 +136,18 @@ function hMSBlock(S,key,r){
 const hGet=(S,r,k)=>{ if(k!=="ms") return r[k]; const q=hMS(S,r); return q&&q.filled?q.sum:undefined; };
 let hLibSrc=null;
 function hLibShow(src,label){ hLibSrc=src; const box=document.getElementById("hLibBox"); if(!box) return; const crit=src.crit||{}; const groups={}; src.subs.forEach(x=>(groups[x.crit]=groups[x.crit]||[]).push(x));
-  box.innerHTML=`<div class="lib"><div class="spread"><b>${esc(label)}</b><button type="button" class="btn sm" id="hLibClose">Tutup</button></div><p class="note">Centang sub-kriteria yang dipakai di sesi ini. Aspeknya ditambahkan ke daftar di bawah, dan setelah itu masih bisa diedit atau dihapus.</p>
-  ${Object.keys(groups).sort().map(k=>`<div class="lib-g"><div class="lib-h">${esc(k)} · ${esc(crit[k]?.name||groups[k][0].critName||"")}${crit[k]?.mark?` <span class="muted">(${crit[k].mark})</span>`:""}</div>${groups[k].map(x=>`<label class="lib-i"><input type="checkbox" data-hlibsc="${esc(x.id)}"> <b>${esc(x.id)}</b> ${esc(x.name)} <span class="muted">· ${x.aspects.length} aspek · ${fmt(x.max??x.aspects.reduce((a,y)=>a+y.max,0),2)}</span></label>`).join("")}</div>`).join("")}
+  box.innerHTML=`<div class="lib"><div class="spread"><b>${esc(label)}</b><button type="button" class="btn sm" id="hLibClose">Tutup</button></div><p class="note">Centang sub-kriteria untuk memakai semua aspeknya. Untuk memilih sebagian aspek saja, klik nama sub-kriteria lalu centang aspek yang dipakai. Daftar di bawah masih bisa diedit atau dihapus.</p>
+  ${Object.keys(groups).sort().map(k=>`<div class="lib-g"><div class="lib-h">${esc(k)} · ${esc(crit[k]?.name||groups[k][0].critName||"")}${crit[k]?.mark?` <span class="muted">(${crit[k].mark})</span>`:""}</div>${groups[k].map(x=>`<details class="asp-g"><summary><label class="lib-i" style="display:inline-flex"><input type="checkbox" data-hlibsc="${esc(x.id)}"> <b>${esc(x.id)}</b> ${esc(x.name)} <span class="muted">· ${x.aspects.length} aspek · ${fmt(x.max??x.aspects.reduce((a,y)=>a+y.max,0),2)}</span></label></summary>${x.aspects.map((y,yi)=>`<label class="lib-i" style="padding-left:28px"><input type="checkbox" data-hliba="${esc(x.id)}|${yi}"> ${esc(y.d)} <span class="muted">· ${y.t} · ${fmt(y.max,2)}</span></label>`).join("")}</details>`).join("")}</div>`).join("")}
   <div class="row"><button type="button" class="btn sm primary" id="hLibAdd">Tambahkan ke marking scheme</button><label class="row" style="gap:6px"><input type="checkbox" id="hLibRepl" checked> ganti isi yang sudah ada</label></div></div>`; }
-function hLibAdd(){ const ids=[...document.querySelectorAll("[data-hlibsc]:checked")].map(x=>x.dataset.hlibsc); if(!ids.length){ toast("Centang minimal satu sub-kriteria."); return; }
+function hLibAdd(){ const pick={}; document.querySelectorAll("[data-hliba]:checked").forEach(x=>{ const [sc,yi]=x.dataset.hliba.split("|"); (pick[sc]=pick[sc]||[]).push(+yi); }); const ids=Object.keys(pick); if(!ids.length){ toast("Centang minimal satu sub-kriteria atau aspek."); return; }
   const ta=document.getElementById("hfMS"), nm=document.getElementById("hfMSName"), repl=document.getElementById("hLibRepl")?.checked;
-  const have=repl?[]:hParseMS(ta.value); const haveSc=new Set(have.map(a=>a.sc).filter(Boolean));
-  const subs=hLibSrc.subs.filter(x=>ids.includes(x.id)&&!haveSc.has(x.id)); if(!subs.length){ toast("Sub-kriteria itu sudah ada di daftar."); return; } subs.forEach(x=>x.aspects.forEach(a=>{ if(a.jd) hImpJD[a.d]=a.jd; }));
-  const lines=subs.flatMap(x=>x.aspects.map(a=>[a.t,a.d,a.req||"",a.max,x.id].join(" | "))).join("\n");
-  ta.value=repl||!ta.value.trim()?lines:ta.value.trim()+"\n"+lines; const nmv=subs.length===1?subs[0].id+" "+subs[0].name:subs.map(x=>x.id).join(" + ");
-  if(repl||!nm.value.trim()) nm.value=nmv; else { const ex=new Set(nm.value.split(/\s*\+\s*|\s+/)); const add=subs.map(x=>x.id).filter(x=>!ex.has(x)); if(add.length) nm.value+=" + "+add.join(" + "); }
-  document.getElementById("hLibBox").innerHTML=""; hMSTot(); toast(`${subs.reduce((a,x)=>a+x.aspects.length,0)} aspek ditambahkan. Simpan sesi untuk memakai.`); }
+  const have=new Set((repl?[]:hParseMS(ta.value)).map(a=>(a.sc||"")+"|"+a.d));
+  const subs=hLibSrc.subs.filter(x=>ids.includes(x.id)); subs.forEach(x=>{ pick[x.id]=pick[x.id].filter(yi=>!have.has(x.id+"|"+x.aspects[yi].d)); });
+  if(!subs.some(x=>pick[x.id].length)){ toast("Aspek itu sudah ada di daftar."); return; } subs.forEach(x=>x.aspects.forEach(a=>{ if(a.jd) hImpJD[a.d]=a.jd; }));
+  const lines=subs.flatMap(x=>x.aspects.filter((a,yi)=>pick[x.id].includes(yi)).map(a=>[a.t,a.d,a.req||"",a.max,x.id].join(" | "))).join("\n");
+  ta.value=repl||!ta.value.trim()?lines:ta.value.trim()+"\n"+lines; const nmv=subs.length===1?subs[0].id+" "+subs[0].name+(pick[subs[0].id].length<subs[0].aspects.length?" (sebagian)":""):subs.map(x=>x.id).join(" + ");
+  if(repl||!nm.value.trim()) nm.value=nmv; else { const ex=new Set(nm.value.split(/\s*\+\s*|\s+/)); const add=subs.filter(x=>pick[x.id].length).map(x=>x.id).filter(x=>!ex.has(x)); if(add.length) nm.value+=" + "+add.join(" + "); }
+  document.getElementById("hLibBox").innerHTML=""; hMSTot(); toast(`${subs.reduce((a,x)=>a+pick[x.id].length,0)} aspek ditambahkan. Simpan sesi untuk memakai.`); }
 function hMSTot(){ const t=document.getElementById("hfMS"), o=document.getElementById("hfMSTot"); if(t&&o) o.textContent=fmt(hParseMS(t.value).reduce((a,x)=>a+x.max,0),2); }
 async function hImportCIS(file){
   try{ await loadXLSX(); }catch(e){ toast(e.message); return; }
@@ -486,3 +487,7 @@ async function importPlan(file){
 }
 
 document.addEventListener("input", e=>{ if(e.target.id==="hfMS") hMSTot(); });
+
+document.addEventListener("change", e=>{ const t=e.target;
+  if(t.dataset.hlibsc){ document.querySelectorAll(`[data-hliba^="${t.dataset.hlibsc}|"]`).forEach(x=>x.checked=t.checked); return; }
+  if(t.dataset.hliba){ const sc=t.dataset.hliba.split("|")[0]; const all=[...document.querySelectorAll(`[data-hliba^="${sc}|"]`)]; const on=all.filter(x=>x.checked).length; const h=document.querySelector(`[data-hlibsc="${sc}"]`); if(h){ h.checked=on===all.length; h.indeterminate=on>0&&on<all.length; } } });

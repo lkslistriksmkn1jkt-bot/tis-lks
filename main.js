@@ -21,6 +21,7 @@ function render(){
   else if(keepE){ const el=document.querySelector(`[data-e="${keepE}"]`); if(el) el.focus({preventScroll:true}); }
   window.scrollTo(sx,sy);
   navSetup();
+  document.querySelectorAll('input[data-ind]').forEach(x=>x.indeterminate=true);
 }
 let navX=0;
 function navArrows(){ const n=document.getElementById("tabs"); if(!n) return; navX=n.scrollLeft; const max=n.scrollWidth-n.clientWidth;

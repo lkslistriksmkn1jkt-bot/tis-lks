@@ -3,7 +3,7 @@
    Data: Supabase (bila config.js diisi) atau mode demo (localStorage)
    ===================================================================== */
 "use strict";
-const VERSION = "v2027.18";
+const VERSION = "v2027.20";
 const CFG = window.TIS_CONFIG || {};
 const DEMO = !CFG.SUPABASE_URL || !CFG.SUPABASE_ANON_KEY;
 const COLORS = ["#1D5FC4","#D35A22","#2F9A3F","#8E44AD","#B07A00","#0E8C8C","#C2372B","#5A6773"];
@@ -131,8 +131,12 @@ const aspects = () => scheme().flatMap(c => c.subs.map(s => ({ ...s, crit:c.id }
 const events = () => A.cfg.events || [];
 const evById = id => events().find(e=>e.id===id);
 const critMax = id => { const c = scheme().find(x=>x.id==id); return c ? c.subs.reduce((a,s)=>a+(+s.max||0),0) : 0; };
+const evSkip = ev => new Set((ev&&ev.skip)||[]);
+const evSubs = (ev, cr) => { const k=evSkip(ev); return cr.subs.filter(s=>!k.has(s.id)); };
+const evCritMax = (ev, id) => { const c = scheme().find(x=>x.id==id); return c ? evSubs(ev,c).reduce((a,s)=>a+(+s.max||0),0) : 0; };
+const evMax = ev => (ev.scope||[]).reduce((a,id)=>a+evCritMax(ev,id),0);
 const schemeTotal = () => scheme().reduce((a,c)=>a+critMax(c.id),0);
-const scopeAsp = ev => aspects().filter(a => (ev.scope||[]).map(String).includes(String(a.crit)));
+const scopeAsp = ev => { const k=evSkip(ev); return aspects().filter(a => (ev.scope||[]).map(String).includes(String(a.crit)) && !k.has(a.id)); };
 
 function jVals(v){ return Array.isArray(v) ? v.filter(x=>x!==null&&x!==""&&!isNaN(x)).map(Number) : (v===undefined||v===null||v==="" ? [] : [Number(v)]); }
 function subPts(s, v){
@@ -145,9 +149,9 @@ function subPts(s, v){
 function calc(eid, cid){
   const ev = evById(eid); if(!ev) return null; const rec = R("mark", eid, cid); if(!rec) return null;
   const scope = (ev.scope||[]).map(String); let raw=0, filled=0; const byCrit={}, byAsp={};
-  scheme().forEach(c => { if(!scope.includes(String(c.id))) return; let ct=0; c.subs.forEach(s => { const p=subPts(s, rec.marks?.[s.id]); byAsp[s.id]=p; if(p!==null){ filled++; ct+=p; } }); byCrit[c.id]=Math.round(ct*100)/100; raw+=ct; });
+  scheme().forEach(c => { if(!scope.includes(String(c.id))) return; let ct=0; evSubs(ev,c).forEach(s => { const p=subPts(s, rec.marks?.[s.id]); byAsp[s.id]=p; if(p!==null){ filled++; ct+=p; } }); byCrit[c.id]=Math.round(ct*100)/100; raw+=ct; });
   const asp = scopeAsp(ev); if(!filled && !rec.k3 && !rec.bahan) return null;
-  const max = scope.reduce((a,id)=>a+critMax(id),0) || 1; const bahan=+rec.bahan||0, k3=!!rec.k3;
+  const max = evMax(ev) || 1; const bahan=+rec.bahan||0, k3=!!rec.k3;
   const net = k3 ? 0 : Math.max(0, raw-bahan);
   return { raw:Math.round(raw*100)/100, max, net:Math.round(net*100)/100, score:Math.round(net/max*10000)/100, byCrit, byAsp, filled, all:asp.length, complete:filled===asp.length, bahan, k3, minutes:rec.minutes||null, plan:rec.plan||null };
 }

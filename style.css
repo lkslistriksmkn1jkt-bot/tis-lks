@@ -355,3 +355,6 @@ table.h-sum tr.tot td{border-top:2px solid var(--line)}
 .paper .r-tbl{max-width:100%}
 .paper .r-tbl td{font-size:10.5px}
 .paper .r-tbl th.r-n{text-align:right}
+
+.asp-g summary{cursor:pointer;list-style-position:outside;margin-left:14px}
+.asp-g[open]{background:var(--sunk);border-radius:6px;padding-bottom:4px}
