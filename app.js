@@ -3,7 +3,7 @@
    Data: Supabase (bila config.js diisi) atau mode demo (localStorage)
    ===================================================================== */
 "use strict";
-const VERSION = "v2027.25";
+const VERSION = "v2027.26";
 const CFG = window.TIS_CONFIG || {};
 const DEMO = !CFG.SUPABASE_URL || !CFG.SUPABASE_ANON_KEY;
 const COLORS = ["#1D5FC4","#D35A22","#2F9A3F","#8E44AD","#B07A00","#0E8C8C","#C2372B","#5A6773"];
@@ -25,6 +25,8 @@ const LocalStore = {
   async uploadPhoto(path, blob){ const u=await new Promise((ok,no)=>{ const fr=new FileReader(); fr.onload=()=>ok(fr.result); fr.onerror=no; fr.readAsDataURL(blob); }); this.db.blobs=this.db.blobs||{}; this.db.blobs[path]=u; try{ this.save(); }catch(e){ delete this.db.blobs[path]; throw new Error("Penyimpanan demo penuh"); } },
   async photoUrls(paths){ const o={}; paths.forEach(p=>{ if(this.db.blobs?.[p]) o[p]=this.db.blobs[p]; }); return o; },
   async deletePhoto(path){ if(this.db.blobs) delete this.db.blobs[path]; this.save(); },
+  async deletePhotos(paths){ paths.forEach(p=>{ if(this.db.blobs) delete this.db.blobs[p]; }); this.save(); },
+  async listFiles(prefix){ return Object.entries(this.db.blobs||{}).filter(([p])=>p.startsWith(prefix+"/")).map(([p,u])=>({ path:p, size:Math.round((u.length-u.indexOf(",")-1)*0.75), type:(u.match(/^data:([^;]+)/)||[])[1]||"", at:null })); },
   save(){ try{ localStorage.setItem(this.key, JSON.stringify(this.db)); }catch(e){ toast("Penyimpanan browser penuh."); } },
   async init(){ this.load(); return { user:{id:"demo",email:"demo@lokal"}, profile:this.db.profiles[0] }; },
   async signIn(){ return {}; }, async signOut(){}, async updatePassword(){ return {}; },
@@ -83,6 +85,12 @@ const SupaStore = {
   async uploadPhoto(path, blob){ const { error } = await this.sb.storage.from("tis-foto").upload(path, blob, { contentType:blob.type||"image/jpeg", upsert:false }); if(error) throw error; },
   async photoUrls(paths){ if(!paths.length) return {}; const { data, error } = await this.sb.storage.from("tis-foto").createSignedUrls(paths, 3600*6); if(error) throw error; const o={}; (data||[]).forEach(d=>{ if(d.signedUrl) o[d.path]=d.signedUrl; }); return o; },
   async deletePhoto(path){ const { error } = await this.sb.storage.from("tis-foto").remove([path]); if(error) throw error; },
+  async deletePhotos(paths){ for(let i=0;i<paths.length;i+=100){ const { error } = await this.sb.storage.from("tis-foto").remove(paths.slice(i,i+100)); if(error) throw error; } },
+  async listFiles(prefix){ const out=[]; const B=this.sb.storage.from("tis-foto");
+    const walk=async(dir,depth)=>{ let off=0; for(;;){ const { data, error } = await B.list(dir,{ limit:1000, offset:off, sortBy:{ column:"name", order:"asc" } }); if(error) throw error; const L=data||[];
+      for(const it of L){ const p=dir+"/"+it.name; if(it.id===null||it.id===undefined){ if(depth<6) await walk(p,depth+1); } else out.push({ path:p, size:it.metadata?.size||0, type:it.metadata?.mimetype||"", at:it.created_at||null }); }
+      if(L.length<1000) break; off+=1000; } };
+    await walk(prefix,0); return out; },
   async listActivity(sid, from, to, lim){ const { data, error } = await this.sb.from("activity").select("*").eq("season_id", sid).gte("at", from).lt("at", to).order("at", { ascending:false }).limit(lim||500); if(error) throw error; return data; },
   subscribe(seasonId, onRecord, onOther){
     if(this.ch) this.sb.removeChannel(this.ch);

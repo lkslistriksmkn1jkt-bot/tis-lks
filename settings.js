@@ -3,7 +3,7 @@
    angka teknis, seleksi, pengguna, backup
    ===================================================================== */
 "use strict";
-const SETS = [["musim","Musim"],["to","TO"],["jadwal","Jadwal"],["scheme","Marking scheme"],["gate","Gate"],["angka","Angka teknis"],["istilah","Istilah"],["seleksi","Seleksi"],["excel","Excel"],["pengguna","Pengguna"],["backup","Backup"]];
+const SETS = [["musim","Musim"],["to","TO"],["jadwal","Jadwal"],["scheme","Marking scheme"],["gate","Gate"],["angka","Angka teknis"],["istilah","Istilah"],["seleksi","Seleksi"],["excel","Excel"],["pengguna","Pengguna"],["simpan","Penyimpanan"],["backup","Backup"]];
 const SECTION_KEYS = { to:["events"], jadwal:["schedule"], scheme:["scheme"], gate:["gates"], angka:["angka","jlabel"], istilah:["istilah"], seleksi:["selection"], musim:["docUrl","jobsheetUrl"] };
 function getPath(o, p){ return p.split(".").reduce((a,k)=>a==null?a:a[k], o); }
 function setPath(o, p, v){ const ks=p.split("."); let a=o; for(let i=0;i<ks.length-1;i++){ if(a[ks[i]]==null) a[ks[i]] = /^\d+$/.test(ks[i+1]) ? [] : {}; a=a[ks[i]]; } a[ks[ks.length-1]]=v; }
@@ -103,6 +103,7 @@ V.pengaturan = () => {
     <div class="tbl-wrap"><table><thead><tr><th>Nama</th><th>E-mail</th><th>Peran</th></tr></thead><tbody>${(A.profiles||[]).map(p=>`<tr><td data-l="Nama"><input type="text" data-uname="${p.id}" value="${esc(p.name||"")}" placeholder="Nama lengkap" style="min-width:180px"></td><td data-l="E-mail">${esc(p.email||"")}</td><td><select data-role="${p.id}">${[["admin","Admin (pembina)"],["juri","Juri (isi nilai)"],["viewer","Pengamat (hanya lihat)"]].map(r=>`<option value="${r[0]}" ${p.role===r[0]?"selected":""}>${r[1]}</option>`).join("")}</select></td></tr>`).join("")||'<tr><td colspan="3" class="muted">Tekan Muat ulang.</td></tr>'}</tbody></table></div>
     <p class="note">Ganti nama langsung di kotak Nama, lalu ketuk di luar kotak; nama tersimpan otomatis dan dipakai di Log Harian serta nilai. Admin: semua menu termasuk Pengaturan. Juri: mengisi nilai, jadwal, gate, jurnal. Pengamat: hanya melihat (cocok untuk siswa).</p></div>`;
   }
+  else if(ui.set==="simpan"){ body=storageView(); }
   else if(ui.set==="backup"){
     body=`<div class="panel"><div class="label">Unduh cadangan musim ini</div><p class="note">Berkas JSON berisi pengaturan musim, peserta, nilai, centang jadwal, gate, dan jurnal. Simpan di Google Drive setiap bulan.</p><div><button class="btn primary" id="bkExport">Unduh cadangan (.json)</button></div></div>
     <div class="panel"><div class="label">Pulihkan dari cadangan</div><p class="note">Cadangan dipulihkan sebagai <b>musim baru</b>, sehingga data yang ada tidak tertimpa.</p><label class="btn" style="display:inline-block">📂 Pilih berkas cadangan<input type="file" id="bkFile" data-keepfile="bk" accept=".json,application/json" style="display:none"></label> <span class="note">${ui.files&&ui.files.bk?"Dipilih: <b>"+esc(ui.files.bk.name)+"</b>":"Belum ada berkas dipilih"}</span><div><button class="btn" id="bkImport">Pulihkan</button></div></div>`;
@@ -291,3 +292,60 @@ document.addEventListener("click", e=>{ const t=e.target.closest("[data-aspev]")
 document.addEventListener("change", e=>{ const t=e.target;
   if(t.dataset.askip){ const [i,id]=t.dataset.askip.split("|"); const ev=ui.edit.events[+i]; const k=new Set(ev.skip||[]); if(t.checked) k.delete(id); else k.add(id); ev.skip=[...k]; ui.dirty=true; render(); return; }
   if(t.dataset.asksc){ const [i,g]=t.dataset.asksc.split("|"); const ev=ui.edit.events[+i]; const k=new Set(ev.skip||[]); scheme().forEach(c=>c.subs.forEach(s=>{ if((s.sc||c.id)===g&&(ev.scope||[]).map(String).includes(String(c.id))){ if(t.checked) k.delete(s.id); else k.add(s.id); } })); ev.skip=[...k]; ui.dirty=true; render(); return; } });
+
+/* ---------- Penyimpanan: kapasitas & hapus file besar ---------- */
+const MB=b=>b/1048576; const fmtMB=b=>b>=1073741824?fmt(b/1073741824,2)+" GB":b>=1048576?fmt(MB(b),1)+" MB":fmt(b/1024,0)+" KB";
+function fileRefs(){ const m={};
+  Object.values(A.rec).forEach(r=>{
+    if(r.kind==="photo"&&r.data?.path){ const e=evById(r.data.eid); const cr=scheme().find(c=>String(c.id)===String(r.data.crit)); m[r.data.path]={ src:"to", rec:r.id, label:`${e?e.name:"TO"} · ${cname(r.competitor_id)} · ${cr?cr.id:r.data.crit==="all"?"keseluruhan":r.data.crit}`, date:e?.date||"" }; }
+    if(r.kind==="harian"){ const sr=String(r.ref).split("~")[0]; const S=A.rec[recId("harian",sr,null)]?.data; (r.data?.files||[]).forEach(f=>{ const it=(S?.items||[]).find(i=>i.id===String(r.ref).split("~")[1]);
+      m[f.path]={ src:String(r.ref).includes("~")?"hasil":"soal", rec:r.id, fid:f.id, name:f.name, label:String(r.ref).includes("~")?`${S?.title||"Sesi harian"} · ${it?.name||""} P${String(r.ref).split("~")[2]} · ${cname(r.competitor_id)}`:`${r.data.title||"Sesi harian"}${f.item?" · "+(((r.data.items||[]).find(i=>i.id===f.item)||{}).name||""):""}`, date:S?.date||r.data?.date||"" }; }); } });
+  return m; }
+function storageView(){
+  const st=ui.stor; const lim=(+A.cfg.storageLimitMB||1024)*1048576;
+  if(!st) { setTimeout(loadStorage,0); return `<div class="panel"><div class="label">Penyimpanan foto & file</div><p class="note">Menghitung pemakaian…</p></div>`; }
+  if(st.err) return `<div class="panel"><div class="label">Penyimpanan foto & file</div><p class="warnbox">Gagal membaca penyimpanan: ${esc(st.err)}</p><button class="btn sm" id="stReload">Coba lagi</button></div>`;
+  const refs=fileRefs(); const files=st.files.map(f=>({ ...f, ref:refs[f.path]||null })); const tot=files.reduce((a,f)=>a+f.size,0);
+  const grp={ to:0, hasil:0, soal:0, yatim:0 }; files.forEach(f=>grp[f.ref?f.ref.src:"yatim"]+=f.size);
+  const pct=tot/lim*100, cls=pct>=90?"bad":pct>=70?"warn":"good";
+  const dbB=new Blob([JSON.stringify(Object.values(A.rec).map(r=>r.data))]).size+new Blob([JSON.stringify(A.cfg)]).size;
+  const flt=ui.stFlt||"besar"; let list=files.slice();
+  if(flt==="pdf") list=list.filter(f=>/pdf/.test(f.type)||/\.pdf$/.test(f.path)); else if(flt==="1mb") list=list.filter(f=>f.size>1048576); else if(flt==="yatim") list=list.filter(f=>!f.ref); else if(flt==="to") list=list.filter(f=>f.ref?.src==="to"); else if(flt==="harian") list=list.filter(f=>f.ref&&f.ref.src!=="to");
+  list.sort((a,b)=>b.size-a.size); const shown=list.slice(0,ui.stMore?400:40); const sel=ui.stSel||{}; const nSel=Object.keys(sel).length; const selB=files.filter(f=>sel[f.path]).reduce((a,f)=>a+f.size,0);
+  const bar=(lbl,b,c)=>`<div class="st-leg"><span class="st-dot" style="background:${c}"></span>${lbl} <b>${fmtMB(b)}</b></div>`;
+  return `<div class="panel"><div class="spread"><div class="label">Penyimpanan foto & file (Supabase Storage)</div><button class="btn sm" id="stReload">↻ Hitung ulang</button></div>
+    <div class="st-big ${cls}"><b>${fmtMB(tot)}</b> dari ${fmtMB(lim)} <span>(${fmt(pct,1)}%)</span></div>
+    <div class="st-bar"><span style="width:${Math.min(100,grp.to/lim*100)}%;background:#3B82F6"></span><span style="width:${Math.min(100,grp.soal/lim*100)}%;background:#F59E0B"></span><span style="width:${Math.min(100,grp.hasil/lim*100)}%;background:#10B981"></span><span style="width:${Math.min(100,grp.yatim/lim*100)}%;background:#9CA3AF"></span></div>
+    <div class="row">${bar("Foto TO",grp.to,"#3B82F6")}${bar("Soal harian",grp.soal,"#F59E0B")}${bar("Foto hasil harian",grp.hasil,"#10B981")}${bar("File yatim",grp.yatim,"#9CA3AF")}</div>
+    <p class="note">${files.length} file. ${pct>=90?"⚠️ Hampir penuh, unggahan baru bisa ditolak. Hapus file besar di bawah.":pct>=70?"Mulai penuh. Pertimbangkan menghapus PDF atau foto yang tidak diperlukan.":"Masih aman."} Data teks (nilai, jurnal, log, jadwal) ±${fmtMB(dbB)} dari batas database 500 MB.
+    <b>File yatim</b> = file yang masih tersimpan tetapi datanya sudah dihapus, jadi aman untuk dihapus.</p>
+    <div class="row"><label class="f" style="width:auto">Batas paket (MB)<input type="number" id="stLim" min="100" step="100" value="${esc(A.cfg.storageLimitMB||1024)}" style="width:110px"></label><span class="note">Paket gratis 1024 MB (1 GB). Ubah bila naik paket.</span></div></div>
+  <div class="panel"><div class="spread"><div class="label">File terbesar</div>${grp.yatim?`<button class="btn sm" id="stOrph">🧹 Hapus semua file yatim (${fmtMB(grp.yatim)})</button>`:""}</div>
+    <div class="subnav">${[["besar","Semua"],["1mb","> 1 MB"],["pdf","PDF"],["to","Foto TO"],["harian","Penilaian harian"],["yatim","Yatim"]].map(([k,l])=>`<button data-stf="${k}" aria-pressed="${flt===k}">${l}</button>`).join("")}</div>
+    ${nSel?`<div class="row st-act"><b>${nSel} file dipilih · ${fmtMB(selB)}</b><button class="btn sm primary" id="stDel">🗑 Hapus yang dipilih</button><button class="btn sm" id="stClr">Batal pilih</button></div>`:""}
+    <div class="st-list">${shown.map(f=>{ const u=photoUrl(f.path); const pdf=/pdf/.test(f.type)||/\.pdf$/.test(f.path);
+      return `<label class="st-row ${sel[f.path]?"on":""}"><input type="checkbox" data-stsel="${esc(f.path)}" ${sel[f.path]?"checked":""}><span class="st-th">${pdf?"📄":u&&u!=="err"?`<img src="${esc(u)}" alt="">`:"🖼"}</span><span class="st-i"><b>${esc(f.ref?(f.ref.name||f.ref.label):"File yatim")}</b><span class="muted">${f.ref?esc(f.ref.name?f.ref.label:(f.ref.src==="to"?"Foto TO":"")):esc(f.path.split("/").slice(1).join("/"))}${f.ref?.date?" · "+dlabel(f.ref.date):""}</span></span><span class="st-s ${f.size>1048576?"big":""}">${fmtMB(f.size)}</span></label>`; }).join("")||'<div class="empty">Tidak ada file.</div>'}</div>
+    ${list.length>shown.length?`<button class="btn sm" id="stMore">Tampilkan semua (${list.length})</button>`:""}
+    <p class="note">Menghapus file juga menghapus fotonya dari TO atau Penilaian Harian. Nilai dan catatan tidak terhapus. File yang sudah dihapus tidak bisa dikembalikan, jadi unduh dulu bila perlu (ketuk foto di halaman asalnya).</p></div>`;
+}
+async function loadStorage(){ if(ui.stLoading) return; ui.stLoading=true; try{ const files=await Store.listFiles(A.season.id); ui.stor={ files }; }catch(e){ ui.stor={ err:errMsg(e) }; } ui.stLoading=false; if(ui.set==="simpan") render(); }
+async function deleteFiles(paths){
+  const refs=fileRefs(); let ok=0;
+  try{ if(Store.deletePhotos) await Store.deletePhotos(paths); else for(const p of paths) await Store.deletePhoto(p); }catch(e){ toast("Gagal menghapus: "+errMsg(e)); return; }
+  const byRec={}; paths.forEach(p=>{ const r=refs[p]; if(r) (byRec[r.rec]=byRec[r.rec]||[]).push(r); });
+  for(const [rid,rs] of Object.entries(byRec)){ const R0=A.rec[rid]; if(!R0) continue;
+    try{ if(R0.kind==="photo"){ await Store.deleteRecord(rid); delete A.rec[rid]; }
+      else { const fids=new Set(rs.map(x=>x.fid)); const d={ ...R0.data, files:(R0.data.files||[]).filter(f=>!fids.has(f.id)) }; await saveRec("harian",R0.ref,R0.competitor_id,d); } }catch(e){ toast(errMsg(e)); } }
+  paths.forEach(p=>delete A.purl[p]); ok=paths.length;
+  ui.stor.files=ui.stor.files.filter(f=>!paths.includes(f.path)); ui.stSel={}; toast(`${ok} file dihapus.`); render();
+}
+document.addEventListener("click", async e=>{ const t=e.target.closest("button"); if(!t) return;
+  if(t.id==="stReload"){ ui.stor=null; ui.stSel={}; render(); return; }
+  if(t.dataset.stf){ ui.stFlt=t.dataset.stf; render(); return; }
+  if(t.id==="stMore"){ ui.stMore=true; render(); return; }
+  if(t.id==="stClr"){ ui.stSel={}; render(); return; }
+  if(t.id==="stDel"){ const ps=Object.keys(ui.stSel||{}); const b=ui.stor.files.filter(f=>ps.includes(f.path)).reduce((a,f)=>a+f.size,0); if(!confirm(`Hapus ${ps.length} file (${fmtMB(b)})? Foto/file ini akan hilang dari TO atau Penilaian Harian dan tidak bisa dikembalikan.`)) return; await deleteFiles(ps); return; }
+  if(t.id==="stOrph"){ const refs=fileRefs(); const ps=ui.stor.files.filter(f=>!refs[f.path]).map(f=>f.path); if(!confirm(`Hapus ${ps.length} file yatim? File ini tidak dipakai data mana pun.`)) return; await deleteFiles(ps); return; } });
+document.addEventListener("change", async e=>{ const t=e.target;
+  if(t.dataset.stsel){ ui.stSel=ui.stSel||{}; if(t.checked) ui.stSel[t.dataset.stsel]=1; else delete ui.stSel[t.dataset.stsel]; render(); return; }
+  if(t.id==="stLim"){ const v=Math.max(100,+t.value||1024); const cfg={ ...A.cfg, storageLimitMB:v }; await saveSeasonCfg(cfg,"Batas penyimpanan disimpan."); return; } });
