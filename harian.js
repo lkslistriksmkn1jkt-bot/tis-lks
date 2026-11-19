@@ -59,8 +59,10 @@ function hPhaseBtns(S,item,rep,c,r){
   const m=S.m||[]; const k=`${item}~${rep}~${c.id}`;
   if(!m.includes("baca")&&!m.includes("kerja")) return "";
   const ph=r.phase||"idle";
-  if(ph==="baca") return `<span class="chip warn big-t">Membaca <b data-since="${r.t0}">${mmss((Date.now()-r.t0)/1000)}</b></span>${canWrite()?`<button class="btn sm primary" data-hgo="${k}" data-to="${m.includes("kerja")?"kerja":"done"}">${m.includes("kerja")?"Paham → mulai kerja":"Selesai baca"}</button>`:""}`;
-  if(ph==="kerja") return `<span class="chip warn big-t">Mengerjakan <b data-since="${r.t1}">${mmss((Date.now()-r.t1)/1000)}</b></span>${canWrite()?`<button class="btn sm primary" data-hgo="${k}" data-to="done">■ Selesai</button>`:""}`;
+  const lb=hNum(S.tBaca)?Math.round(hNum(S.tBaca)*60):0, lk=hNum(S.tKerja)?Math.round(hNum(S.tKerja)*60):0;
+  const run=(lbl,t,lim)=>{ const over=lim&&(Date.now()-t)/1000>lim; return `<span class="chip ${over?"bad":"warn"} big-t" data-runlim="${lim||""}" data-runsince="${t}">${lbl} <b data-since="${t}">${mmss((Date.now()-t)/1000)}</b>${lim?` <small>/ ${mmss(lim)}</small>`:""}</span>`; };
+  if(ph==="baca") return `${run("Membaca",r.t0,lb)}${canWrite()?`<button class="btn sm primary" data-hgo="${k}" data-to="${m.includes("kerja")?"kerja":"done"}">${m.includes("kerja")?"Paham → mulai kerja":"Selesai baca"}</button>`:""}`;
+  if(ph==="kerja") return `${run("Mengerjakan",r.t1,lk)}${canWrite()?`<button class="btn sm primary" data-hgo="${k}" data-to="done">■ Selesai</button>`:""}`;
   if(!canWrite()) return "";
   if(ph==="done") return `<button class="btn sm" data-hgo="${k}" data-to="reset">Ulangi stopwatch</button>`;
   return `<button class="btn sm primary" data-hgo="${k}" data-to="${m.includes("baca")?"baca":"kerja"}">▶ Mulai ${m.includes("baca")?"baca":"kerja"}</button>`;
@@ -87,8 +89,8 @@ function hSessionView(S){
     const cmp=(v,pv,t)=>{ const out=[]; if(v!==null&&v!==undefined&&t) out.push(v<=t?'<span class="chip good">✓ target</span>':'<span class="chip bad">lewat target</span>'); if(prev&&pv!==null&&pv!==undefined&&v!==null&&v!==undefined&&pv>0){ const d=Math.round((v-pv)/pv*100); out.push(`<span class="chip ${d<=0?"good":"warn"}">${d>0?"+":""}${d}% vs P${rep-1}</span>`);} return out.join(""); };
     const fld=(f,label,extra)=>`<label class="f">${label}<input ${ro} type="${f==="baca"||f==="kerja"?"text":"number"}" ${f==="baca"||f==="kerja"?'inputmode="decimal" placeholder="m:ss"':'inputmode="decimal" min="0" step="'+(f==="dev"?"0.5":"1")+'"'} id="hx-${f}-${c.id}" data-hres="${key}" data-f="${f}" value="${esc(f==="baca"||f==="kerja"?mmss(r[f]):(r[f]??""))}">${extra||""}</label>`;
     return `<div class="entry" style="border-left-color:${compColor(c)}"><div class="spread"><b>${badge(c,true)} ${esc(c.name)}</b><span class="row">${hPhaseBtns(S,item,rep,c,r)}</span></div>
-      <div class="grid g3 h-g">${m.includes("baca")?fld("baca","Waktu baca",`<span class="row">${cmp(r.baca,p.baca,tB?tB*60:null)}</span>`):""}${m.includes("kerja")?fld("kerja","Waktu kerja",`<span class="row">${cmp(r.kerja,p.kerja,tK?tK*60:null)}</span>`):""}
-      ${m.includes("salah")?fld("salah","Kesalahan",`<span class="row">${cmp(hNum(r.salah),hNum(p.salah),null)}</span>`):""}${m.includes("dev")?fld("dev","Deviasi maks (mm)",`<span class="row">${hNum(r.dev)!==null&&tD!==null?(hNum(r.dev)<=tD?'<span class="chip good">✓ toleransi</span>':'<span class="chip bad">di luar toleransi</span>'):""}</span>`):""}${m.includes("skor")?fld("skor","Skor (0–100)"):""}${(S.extra||[]).map(x=>fld("x_"+x.id,esc(x.name)+(x.max?" (maks "+x.max+")":""))).join("")}</div>
+      <div class="grid g3 h-g">${m.includes("baca")?fld("baca","Waktu baca"+(tB?` <span class="muted">(target ${mmss(tB*60)})</span>`:""),`<span class="row">${cmp(r.baca,p.baca,tB?tB*60:null)}</span>`):""}${m.includes("kerja")?fld("kerja","Waktu kerja"+(tK?` <span class="muted">(target ${mmss(tK*60)})</span>`:""),`<span class="row">${cmp(r.kerja,p.kerja,tK?tK*60:null)}</span>`):""}
+      ${m.includes("salah")?fld("salah","Kesalahan",`<span class="row">${cmp(hNum(r.salah),hNum(p.salah),null)}</span>`):""}${m.includes("dev")?fld("dev","Deviasi maks (mm)"+(tD!==null?` <span class="muted">(target ≤ ${fmt(tD,1)})</span>`:""),`<span class="row">${hNum(r.dev)!==null&&tD!==null?(hNum(r.dev)<=tD?'<span class="chip good">✓ toleransi</span>':'<span class="chip bad">di luar toleransi</span>'):""}</span>`):""}${m.includes("skor")?fld("skor","Skor (0–100)"):""}${(S.extra||[]).map(x=>fld("x_"+x.id,esc(x.name)+(x.max?" (maks "+x.max+")":""))).join("")}</div>
       <label class="f">Catatan juri<input ${ro} type="text" id="hx-note-${c.id}" data-hres="${key}" data-f="note" value="${esc(r.note||"")}" placeholder="Bagian yang salah baca, simbol yang belum hafal, dll."></label>
       ${hFiles(S,null,"Foto hasil kerja",key,r)}
       ${r.by?`<div class="note">dicatat ${esc(r.by)}</div>`:""}</div>`; }).join("");
@@ -252,7 +254,8 @@ document.addEventListener("submit", async e=>{
   if(await saveRec("harian",ref,null,data)){ ui.hForm=null; ui.hDay=data.date; ui.hSes=ref; ui.hItem=null; ui.hRep=1; toast(old?"Sesi diperbarui.":"Sesi dibuat."); render(); }
 }, true);
 
-setInterval(()=>{ document.querySelectorAll("[data-since]").forEach(el=>{ const s=+el.dataset.since; if(s) el.textContent=mmss((Date.now()-s)/1000); }); }, 1000);
+setInterval(()=>{ document.querySelectorAll("[data-since]").forEach(el=>{ const s=+el.dataset.since; if(s) el.textContent=mmss((Date.now()-s)/1000); });
+  document.querySelectorAll("[data-runlim]").forEach(el=>{ const lim=+el.dataset.runlim, s=+el.dataset.runsince; if(lim&&s){ const over=(Date.now()-s)/1000>lim; el.classList.toggle("bad",over); el.classList.toggle("warn",!over); } }); }, 1000);
 
 async function exportHarian(){
   const from=document.getElementById("hxFrom").value, to=document.getElementById("hxTo").value;
