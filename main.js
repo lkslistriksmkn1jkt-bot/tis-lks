@@ -110,12 +110,12 @@ async function exportJurnal(){
   const num=v=>v===undefined||v===null||v===""||isNaN(v)?"":+v;
   const list=Object.values(A.rec).filter(r=>r.kind==="journal"&&(!cid||r.competitor_id===cid)).map(r=>({cid:r.competitor_id,...r.data})).filter(j=>(j.date||"")>=from&&(j.date||"")<=to).sort((a,b)=>(a.date||"").localeCompare(b.date||"")||(a.at||0)-(b.at||0));
   if(!list.length){ toast("Tidak ada catatan jurnal pada rentang ini."); return; }
-  const J=[["Tanggal","Hari","Peserta","Drill / pekerjaan","Waktu (mnt)","Time plan (mnt)","Selisih plan (%)","Deviasi maks (mm)","Cacat","Bahan tambahan","Kondisi","Tidur (jam)","Sudah bisa","Belum bisa","Dicatat oleh"]].concat(list.map(j=>{ const w=num(j.waktu), p=num(j.plan); return [j.date,HARI[dparts(j.date).getDay()],cname(j.cid),j.drill||"",w,p,w!==""&&p?Math.round((w-p)/p*100):"",num(j.dev),num(j.cacat),num(j.bahan),j.kondisi||"",num(j.tidur),j.bisa||"",j.belum||"",j.by||""]; }));
+  const J=[["Tanggal","Hari","Peserta","Drill / pekerjaan","Waktu (j:mm:ss)","Time plan (j:mm:ss)","Waktu (menit)","Time plan (menit)","Selisih plan (%)","Deviasi maks (mm)","Cacat","Bahan tambahan","Kondisi","Tidur (jam)","Sudah bisa","Belum bisa","Dicatat oleh"]].concat(list.map(j=>{ const w=num(j.waktu), p=num(j.plan); return [j.date,HARI[dparts(j.date).getDay()],cname(j.cid),j.drill||"",w!==""?mmss(w*60):"",p!==""?mmss(p*60):"",w!==""?Math.round(w*100)/100:"",p!==""?Math.round(p*100)/100:"",w!==""&&p?Math.round((w-p)/p*100):"",num(j.dev),num(j.cacat),num(j.bahan),j.kondisi||"",num(j.tidur),j.bisa||"",j.belum||"",j.by||""]; }));
   const avg=a=>a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length*10)/10:"";
   const S=[["Peserta","Jumlah catatan","Hari tercatat","Rata-rata deviasi (mm)","Deviasi terbaik (mm)","Rata-rata selisih plan (%)","Total cacat","Total bahan tambahan","Kondisi tidak baik (kali)"]].concat(A.comps.filter(c=>!cid||c.id===cid).map(c=>{ const a=list.filter(j=>j.cid===c.id); const dev=a.map(j=>num(j.dev)).filter(x=>x!==""); const tp=a.filter(j=>num(j.waktu)!==""&&num(j.plan)).map(j=>(j.waktu-j.plan)/j.plan*100);
     return [c.name,a.length,new Set(a.map(j=>j.date)).size,avg(dev),dev.length?Math.min(...dev):"",avg(tp),a.reduce((x,j)=>x+(+j.cacat||0),0),a.reduce((x,j)=>x+(+j.bahan||0),0),a.filter(j=>j.kondisi&&j.kondisi!=="Baik").length]; }));
   const wb=XLSX.utils.book_new();
-  const w1=XLSX.utils.aoa_to_sheet(J); w1["!cols"]=[{wch:11},{wch:8},{wch:16},{wch:30},{wch:9},{wch:10},{wch:10},{wch:11},{wch:7},{wch:9},{wch:12},{wch:8},{wch:45},{wch:45},{wch:16}]; XLSX.utils.book_append_sheet(wb,w1,"Jurnal");
+  const w1=XLSX.utils.aoa_to_sheet(J); w1["!cols"]=[{wch:11},{wch:8},{wch:16},{wch:30},{wch:10},{wch:10},{wch:9},{wch:9},{wch:10},{wch:11},{wch:7},{wch:9},{wch:12},{wch:8},{wch:45},{wch:45},{wch:16}]; XLSX.utils.book_append_sheet(wb,w1,"Jurnal");
   const w2=XLSX.utils.aoa_to_sheet(S); w2["!cols"]=[{wch:18},{wch:10},{wch:10},{wch:14},{wch:14},{wch:16},{wch:9},{wch:12},{wch:14}]; XLSX.utils.book_append_sheet(wb,w2,"Ringkasan");
   XLSX.writeFile(wb, "Jurnal-"+(cid?cname(cid).replace(/[^\w-]+/g,"_")+"-":"")+from+"_sd_"+to+".xlsx"); toast("Excel jurnal diunduh.");
 }
@@ -297,7 +297,9 @@ document.addEventListener("submit", async e=>{
     if(await saveRec("log", d+"~"+A.user.id, null, data)){ toast("Log disimpan."); refreshAct(); } return; }
   if(f.id==="jForm"){ const g=id=>document.getElementById(id).value.trim();
     const ed=ui.jEdit?A.rec[ui.jEdit]:null;
-    const data={ date:g("jDate")||todayId(), drill:g("jDrill"), waktu:g("jWaktu"), plan:g("jPlan"), dev:g("jDev"), cacat:g("jCacat"), bahan:g("jBahan"), kondisi:g("jKondisi"), tidur:g("jTidur"), bisa:g("jBisa"), belum:g("jBelum") };
+    const tm=id=>{ const v=g(id); if(!v) return ""; const s=parseT(v); return s===null?null:String(Math.round(s/60*10000)/10000); };
+    const tw=tm("jWaktu"), tpl=tm("jPlan"); if(tw===null||tpl===null){ toast("Format waktu: 1:25:30 (jam:menit:detik), 45:10 (menit:detik), atau 90 (menit)."); return; }
+    const data={ date:g("jDate")||todayId(), drill:g("jDrill"), waktu:tw, plan:tpl, dev:g("jDev"), cacat:g("jCacat"), bahan:g("jBahan"), kondisi:g("jKondisi"), tidur:g("jTidur"), bisa:g("jBisa"), belum:g("jBelum") };
     if(!data.drill&&!data.bisa&&!data.belum&&!data.waktu){ toast("Isi minimal drill, waktu, atau catatan."); return; }
     const cid=g("jCid"); const me=A.profile?.name||A.user?.email||"";
     if(ed){ Object.assign(data,{ at:ed.data.at||Date.now(), by:ed.data.by||me, byId:ed.data.byId||A.user.id, edited:Date.now(), editedBy:me });
