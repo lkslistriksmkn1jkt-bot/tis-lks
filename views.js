@@ -33,7 +33,7 @@ function shell(inner, r){
       <div class="userbox"><b>${esc(A.profile?.name||A.user?.email||"")}</b><span>(${roleName})</span>${DEMO?"":'<a href="#" id="signOut">Keluar</a>'}</div></div>
     <h1>Training Information System</h1>
     <div class="row" style="gap:8px"><label class="sub" for="seasonSel">Musim</label><select id="seasonSel" style="width:auto;max-width:100%;background:transparent;color:var(--band-ink);border-color:var(--band-muted)">${seasonOpts}</select></div>
-    <nav class="tabs" id="tabs" aria-label="Menu">${NAV.filter(n=>!n[2]||n[2]()).map(n=>`<a href="#${n[0]}" ${n[0]===r?'aria-current="page"':""}>${n[1]}</a>`).join("")}</nav>
+    <div class="navw"><button type="button" class="nav-arr l" data-navs="-1" aria-label="Menu sebelumnya" hidden>‹</button><nav class="tabs" id="tabs" aria-label="Menu">${NAV.filter(n=>!n[2]||n[2]()).map(n=>`<a href="#${n[0]}" ${n[0]===r?'aria-current="page"':""}>${n[1]}</a>`).join("")}</nav><button type="button" class="nav-arr r" data-navs="1" aria-label="Menu berikutnya" hidden>›</button></div>
   </div></header>
   <main><div class="wrap" id="view">${inner}</div></main>
   <footer class="foot"><div class="wrap"><span class="src ${DEMO?"local":A.online?"live":""}">${DEMO?"MODE DEMO · DATA LOKAL":A.online?"SUPABASE LIVE":"OFFLINE · MENUNGGU KONEKSI"}</span><span>TIS LKS Instalasi Listrik · <span class="num">${VERSION}</span></span></div></footer>`;
