@@ -382,7 +382,7 @@ V.istilah = () => {
   const list=all.filter(x=>(!g||x.g===g)&&(!q||x.t.toLowerCase().includes(q)||x.a.toLowerCase().includes(q)));
   const by={}; list.forEach(x=>{ (by[x.g]=by[x.g]||[]).push(x); });
   return `<div><h2>Daftar istilah</h2><p class="lead">Istilah yang sering muncul di jobsheet, marking scheme, TIS, dan saat lomba. Ketik untuk mencari.</p></div>
-  <div class="panel no-print"><input type="search" id="istQ" placeholder="Cari istilah, misalnya: datum, interlock, zeroing" value="${esc(ui.istQ||"")}" autocomplete="off">
+  <div class="panel no-print"><input type="search" id="istQ" placeholder="Cari istilah, misalnya: garis referensi, interlock, zeroing" value="${esc(ui.istQ||"")}" autocomplete="off">
    <div class="row"><button class="btn sm ${!g?"primary":""}" data-istg="">Semua (${all.length})</button>${groups.map(x=>`<button class="btn sm ${g===x?"primary":""}" data-istg="${esc(x)}">${esc(x.replace(/^[A-Z]\.\s*/,""))}</button>`).join("")}</div>
    <div class="row"><span class="note">${list.length} istilah ditemukan</span><button class="btn sm" id="istPrint">Cetak / PDF</button></div></div>
   ${list.length?Object.entries(by).map(([gn,xs])=>`<div class="panel"><div class="label">${esc(gn)}</div><div class="ist">${xs.map(x=>`<div class="ist-r"><b>${hl(x.t,q)}</b><span>${hl(x.a,q)}</span></div>`).join("")}</div></div>`).join(""):'<div class="empty">Istilah tidak ditemukan. Coba kata lain.</div>'}`;

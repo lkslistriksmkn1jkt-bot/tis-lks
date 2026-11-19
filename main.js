@@ -43,6 +43,7 @@ async function openSeason(id){
   try{ localStorage.setItem("tis-season", id); }catch(e){}
   const d=await Store.loadSeason(id); A.comps=d.competitors.sort((a,b)=>(a.sort||0)-(b.sort||0)); A.rec={}; d.records.forEach(r=>A.rec[r.id]=r);
   if(unsub) unsub();
+  if(isAdmin()&&!A.cfg.refRenamed&&window.TIS_REF_RENAME&&/\bdatum\b/i.test(JSON.stringify([A.cfg.schedule,A.cfg.events,A.cfg.istilah,A.cfg.gates,A.cfg.angka]))){ try{ await saveSeasonCfg(window.TIS_REF_RENAME(A.cfg),"Istilah \"datum\" diganti menjadi \"garis referensi\"."); }catch(e){} }
   unsub = Store.subscribe(id, p=>{ if(p.eventType==="DELETE"){ delete A.rec[p.old.id]; } else { const r=p.new; const k=r.id; if(saveState[k]==="saving") return; A.rec[k]=r; } render(); refreshAct(); }, debounce(async()=>{ await reloadSeason(); },500));
   render();
 }
