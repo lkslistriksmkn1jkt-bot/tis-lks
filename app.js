@@ -3,7 +3,7 @@
    Data: Supabase (bila config.js diisi) atau mode demo (localStorage)
    ===================================================================== */
 "use strict";
-const VERSION = "v2027.28";
+const VERSION = "v2027.29";
 const CFG = window.TIS_CONFIG || {};
 const DEMO = !CFG.SUPABASE_URL || !CFG.SUPABASE_ANON_KEY;
 const COLORS = ["#1D5FC4","#D35A22","#2F9A3F","#8E44AD","#B07A00","#0E8C8C","#C2372B","#5A6773"];
@@ -139,6 +139,8 @@ const aspects = () => scheme().flatMap(c => c.subs.map(s => ({ ...s, crit:c.id }
 const events = () => A.cfg.events || [];
 const evById = id => events().find(e=>e.id===id);
 const critMax = id => { const c = scheme().find(x=>x.id==id); return c ? c.subs.reduce((a,s)=>a+(+s.max||0),0) : 0; };
+const evDays = ev => Math.max(1, Math.min(3, Math.round(+(ev&&ev.days)||1)));
+const aspDay = (ev, id) => { const d=+((ev&&ev.dayOf)||{})[id]; return d>=1&&d<=evDays(ev)?d:1; };
 const evSkip = ev => new Set((ev&&ev.skip)||[]);
 const evSubs = (ev, cr) => { const k=evSkip(ev); return cr.subs.filter(s=>!k.has(s.id)); };
 const evCritMax = (ev, id) => { const c = scheme().find(x=>x.id==id); return c ? evSubs(ev,c).reduce((a,s)=>a+(+s.max||0),0) : 0; };

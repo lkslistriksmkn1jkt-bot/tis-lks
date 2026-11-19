@@ -389,3 +389,10 @@ table.h-sum tr.tot td{border-top:2px solid var(--line)}
 
 .chip{max-width:100%}
 .to-focus{margin:8px 0 6px;font-size:14px;line-height:1.45;color:var(--ink);overflow-wrap:anywhere}
+
+.dayseg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;flex:none}
+.dayseg button{border:none;background:var(--bg);color:var(--ink);padding:4px 10px;font-weight:700;font-size:12px;cursor:pointer;min-height:32px}
+.dayseg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+.foot .credit{display:block;width:100%;margin-top:4px;font-size:12px;opacity:.75}
+.asp-g summary{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.asp-g summary .dayseg{margin-left:auto}

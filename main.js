@@ -183,6 +183,7 @@ document.addEventListener("click", async e=>{
   if(t.dataset.logto){ e.preventDefault(); setLogDate(t.dataset.logto); window.scrollTo(0,0); return; }
   if(t.id==="jXls"){ await exportJurnal(); return; }
   if(t.id==="jPrint"){ const f=document.getElementById("jxFrom").value, to=document.getElementById("jxTo").value; if(!f||!to||f>to){ toast("Periksa rentang tanggal."); return; } ui.jRep={ from:f, to, cid:document.getElementById("jxCid").value }; render(); window.scrollTo(0,0); return; }
+  if(t.dataset.mday!==undefined){ ui.mday=+t.dataset.mday; render(); return; }
   if(t.dataset.actwho!==undefined){ ui.actWho=t.dataset.actwho; ui.actAll=false; render(); return; }
   if(t.id==="actMore"){ ui.actAll=!ui.actAll; render(); return; }
   if(t.id==="jRepClose"){ ui.jRep=null; render(); return; }
@@ -268,7 +269,7 @@ document.addEventListener("change", async e=>{
   if(t.id==="rEv"){ ui.pev=t.value; rememberUI(); render(); return; }
   if(t.dataset.role){ try{ await Store.setRole(t.dataset.role, t.value); const p=A.profiles.find(x=>x.id===t.dataset.role); if(p) p.role=t.value; if(t.dataset.role===A.user.id) A.profile.role=t.value; toast("Peran diubah."); render(); }catch(err){ toast(errMsg(err)); render(); } return; }
   /* pengaturan: perubahan struktur */
-  if(t.dataset.e && t.tagName==="SELECT"){ setPath(ui.edit,t.dataset.e,t.value); ui.dirty=true; if(/\.t$|\.kind$/.test(t.dataset.e)) render(); return; }
+  if(t.dataset.e && t.tagName==="SELECT"){ setPath(ui.edit,t.dataset.e,t.value); ui.dirty=true; if(/\.t$|\.kind$|\.days$/.test(t.dataset.e)) render(); return; }
   if(t.dataset.scope!==undefined){ const ev=ui.edit.events[+t.dataset.scope]; ev.scope=ev.scope||[]; const c=isNaN(+t.dataset.crit)?t.dataset.crit:+t.dataset.crit; ev.scope=ev.scope.filter(x=>String(x)!==String(c)); if(t.checked) ev.scope.push(c); ev.scope.sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true})); ui.dirty=true; return; }
   if(t.dataset.keepfile&&t.dataset.keepfile.startsWith("ph:")){ const files=[...t.files]; t.value=""; ui.picking=0; await uploadPhotos(ui.ev,ui.cid,t.dataset.keepfile.slice(3),files); return; }
   if(t.dataset.keepfile){ ui.files=ui.files||{}; ui.files[t.dataset.keepfile]=t.files[0]||null; ui.picking=0; if(t.dataset.keepfile==="xl"&&t.files[0]){ await readExcel(); } else render(); return; }
