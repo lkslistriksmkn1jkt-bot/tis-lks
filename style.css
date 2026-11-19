@@ -307,3 +307,7 @@ table.h-sum tr.tot td{border-top:2px solid var(--line)}
 .h-file{position:relative;display:inline-flex;align-items:center;min-height:44px;padding:8px 40px 8px 12px;border:1px solid var(--line);border-radius:6px;background:var(--sunk);font-size:14px;max-width:100%;word-break:break-all}
 .h-file .ph-del{top:9px}
 @media (max-width:640px){.grid.h-g{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.grid.h-g{align-items:start}
+.h-fld .h-lb{min-height:2.7em;display:flex;align-items:flex-end;gap:6px;flex-wrap:wrap;line-height:1.3}
+.h-fld .h-lb small{font-size:12px;font-family:var(--f-mono)}
+.h-fld .row{min-height:0}
