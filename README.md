@@ -141,3 +141,6 @@ Menu **Penilaian Harian** untuk latihan pendek yang dinilai setiap hari. Try Out
 - **Rekap per jenis penilaian:** rata-rata dan perkembangan dari sesi pertama ke sesi terakhir.
 - **Excel:** unduh hasil (sheet Hasil, Rekap, Per jenis). Rencana harian bisa diunduh, diedit, lalu diunggah kembali.
 - **Database:** jalankan `update-harian.sql` sekali di Supabase.
+- **Marking scheme di sesi harian (v2027.14):** aspek M (Ya/Tidak) dan J (0–3) beserta nilai maksimumnya. Bisa diketik (`M | deskripsi | syarat | nilai`) atau diimpor dari Excel format CIS (WorldSkills). Nilainya ikut ringkasan, rekap, Excel, dan laporan PDF (dengan rincian per aspek).
+- **Standar EI (v2027.15):** marking scheme standar LKS EI (kriteria A–G, 17 sub-kriteria, total 100) sudah tersedia di aplikasi (`msstd.js`). Di form sesi, tombol **📚 Ambil dari standar EI** dipakai untuk memilih sub-kriteria. Impor Excel CIS yang berisi banyak sub-kriteria juga menampilkan pilihan yang sama.
+- **TO memakai standar EI (v2027.16):** Pengaturan › Marking scheme › **Pakai marking scheme standar EI**. Kriteria A–G dan 133 aspek resmi menggantikan kriteria 1–7. Lingkup TO dipindah 1→A … 7→G, sedangkan foto dan catatan per kriteria ikut dipindahkan. Scheme lama disimpan dan bisa dikembalikan. Aspek J menampilkan deskripsi resmi skor 0–3 (tombol ?).

@@ -7,6 +7,7 @@ const H_M = { baca:"Waktu baca / memahami gambar", kerja:"Waktu mengerjakan", sa
 const H_JENIS = ["Membaca gambar","Drawing / sketsa","Marking out & layout","Pemasangan (trunking, conduit, komponen)","Terminasi & penyambungan kabel","Wiring panel","Pengukuran & pengujian","Teori / angka teknis","Lainnya"];
 const H_TPL = [
   { title:"Drawing & membaca gambar", jenis:"Membaca gambar", items:"Sketsa 1\nSketsa 2\nSketsa 3", reps:2, m:["baca","kerja","salah","dev"], tBaca:3, tKerja:20, x:"Simbol & notasi benar /10\nKerapian gambar /5", note:"Siswa membaca gambar sampai paham (stopwatch baca), lalu menggambar/menandai ulang. Diulang untuk melihat peningkatan kecepatan dan ketelitian." },
+  { title:"Marking out · C1 Measurements", jenis:"Marking out & layout", items:"Papan 1", reps:2, m:["kerja"], tBaca:"", tKerja:"", x:"", std:["C1"], note:"Marking scheme standar EI sub-kriteria C1: 10 titik ukur, toleransi ±2 mm, Ya/Tidak, 0,75 per titik." },
   { title:"Drill marking / layout", jenis:"Marking out & layout", items:"Layout 1\nLayout 2", reps:3, m:["kerja","dev"], tBaca:"", tKerja:15, note:"" },
   { title:"Drill terminasi kabel", jenis:"Terminasi & penyambungan kabel", items:"10 terminasi", reps:3, m:["kerja","salah"], tBaca:"", tKerja:12, note:"" }
 ];
@@ -19,10 +20,22 @@ const hXText = x => (x||[]).map(e=>e.name+(e.max?" /"+e.max:"")).join("\n");
 function hMergeX(old,parsed){ const used=new Set(); return parsed.map((e,i)=>{ const ex=(old||[]).find(o=>o.name===e.name&&!used.has(o.id)); const id=ex?ex.id:"x"+Date.now().toString(36)+i; used.add(id); return { id, name:e.name, max:e.max }; }); }
 function hMergeItems(old,names){ const used=new Set(); return names.map((n,i)=>{ let ex=(old||[]).find(o=>o.name===n&&!used.has(o.id)) || ((old||[])[i]&&!used.has(old[i].id)&&!names.includes(old[i].name)?old[i]:null); const id=ex?ex.id:"i"+Date.now().toString(36)+i; used.add(id); return { id, name:n }; }); }
 const hNum = v => { const x=parseFloat(String(v??"").replace(",",".")); return isFinite(x)?x:null; };
-function hStats(S,cid,rep){ const rs=[]; (S.items||[]).forEach(i=>{ for(let x=1;x<=(+S.reps||1);x++){ if(rep&&x!==rep) continue; const r=hRes(S.ref,i.id,x,cid); if(Object.keys(r).some(k=>!["by","at","phase","t0","t1","files"].includes(k)&&r[k]!==null&&r[k]!=="")) rs.push(r); } });
+function hStats(S,cid,rep){ const rs=[]; (S.items||[]).forEach(i=>{ for(let x=1;x<=(+S.reps||1);x++){ if(rep&&x!==rep) continue; const r=hRes(S.ref,i.id,x,cid); if(Object.keys(r).some(k=>!["by","at","phase","t0","t1","files"].includes(k)&&r[k]!==null&&r[k]!==""&&!(k==="ms"&&!Object.keys(r.ms||{}).length))) rs.push(r); } });
   const pct=rs.map(r=>{ const xs=(S.extra||[]).filter(x=>x.max&&hNum(r["x_"+x.id])!==null); return xs.length?xs.reduce((a,x)=>a+hNum(r["x_"+x.id])/x.max,0)/xs.length*100:null; });
-  return { n:rs.length, baca:hAvg(rs.map(r=>hNum(r.baca))), kerja:hAvg(rs.map(r=>hNum(r.kerja))), salah:hAvg(rs.map(r=>hNum(r.salah))), dev:hAvg(rs.map(r=>hNum(r.dev))), skor:hAvg(rs.map(r=>hNum(r.skor))), pct:hAvg(pct) }; }
+  const msp=rs.map(r=>{ const q=hMS(S,r); return q&&q.filled?q.pct:null; });
+  return { n:rs.length, ms:hAvg(msp), baca:hAvg(rs.map(r=>hNum(r.baca))), kerja:hAvg(rs.map(r=>hNum(r.kerja))), salah:hAvg(rs.map(r=>hNum(r.salah))), dev:hAvg(rs.map(r=>hNum(r.dev))), skor:hAvg(rs.map(r=>hNum(r.skor))), pct:hAvg(pct) }; }
 const hJenis = S => S.jenis||"Lainnya";
+const H_STD = () => window.TIS_MS_STD || { crit:{}, subs:[] };
+const hStdLines = ids => H_STD().subs.filter(x=>ids.includes(x.id)).flatMap(x=>x.aspects.map(a=>[a.t,a.d,a.req||"",a.max,x.id].join(" | "))).join("\n");
+const hStdName = ids => { const l=H_STD().subs.filter(x=>ids.includes(x.id)); return l.length===1?l[0].id+" "+l[0].name:l.map(x=>x.id).join(" + "); };
+const hMSText = ms => (ms||[]).map(a=>[a.t,a.d,a.req||"",a.max].concat(a.sc?[a.sc]:[]).join(" | ")).join("\n");
+function hParseMS(txt,old){ const used=new Set(); return String(txt||"").split("\n").map(l=>l.trim()).filter(Boolean).map((l,i)=>{ const p=l.split("|").map(x=>x.trim()); let t=(p[0]||"").toUpperCase(); if(t!=="M"&&t!=="J"){ p.unshift("M"); t="M"; } const d=p[1]||""; const req=p.length>3?p[2]:""; const max=hNum(p[p.length>3?3:2])||0; const sc=(p.length>4?p[4]:"")||"";
+  const ex=(old||[]).find(o=>o.d===d&&(o.sc||"")===sc&&!used.has(o.id)); const id=ex?ex.id:"a"+Date.now().toString(36)+i; used.add(id);
+  const std=t==="J"?H_STD().subs.filter(x=>!sc||x.id===sc).flatMap(x=>x.aspects).find(a=>a.d===d&&a.jd):null;
+  return { id, t, d, req, max, sc, jd:ex?.jd||std?.jd||hImpJD[d]||undefined }; }).filter(a=>a.d); }
+let hImpJD={};
+function hMS(S,r){ const ms=S.ms||[]; if(!ms.length) return null; const v=(r&&r.ms)||{}; let sum=0,f=0; const max=ms.reduce((a,x)=>a+(+x.max||0),0);
+  ms.forEach(a=>{ const x=v[a.id]; if(x===undefined||x===null||x==="") return; f++; sum+=a.t==="J"?(+x/3)*a.max:(+x?a.max:0); }); return { sum:Math.round(sum*100)/100, max:Math.round(max*100)/100, filled:f, all:ms.length, pct:f&&max?sum/max*100:null }; }
 const hAvg = a => { a=a.filter(x=>x!==null&&x!==undefined&&x!==""&&!isNaN(x)); return a.length?a.reduce((x,y)=>x+ +y,0)/a.length:null; };
 
 V.harian = () => {
@@ -54,6 +67,11 @@ function hFormView(s,day){
   <div class="f"><span>Yang diukur</span>${Object.entries(H_M).map(([k,v])=>`<label class="row" style="gap:6px"><input type="checkbox" data-hm="${k}" ${m.includes(k)?"checked":""}>${v}</label>`).join("")}</div></div></div>
   <div class="grid g3"><label class="f">Target baca (menit)<input type="number" inputmode="decimal" step="0.5" min="0" id="hfTB" value="${esc(s.tBaca??"")}"></label><label class="f">Target kerja (menit)<input type="number" inputmode="decimal" step="0.5" min="0" id="hfTK" value="${esc(s.tKerja??"")}"></label><label class="f">Target deviasi (mm)<input type="number" inputmode="decimal" step="0.5" min="0" id="hfTD" value="${esc(s.tDev??"")}"></label></div>
   <label class="f">Kriteria tambahan, dinilai angka (satu per baris; tulis nilai maks setelah garis miring)<textarea id="hfX" rows="2" placeholder="Simbol benar /10&#10;Kerapian gambar /5">${esc(hXText(s.extra))}</textarea></label>
+  <div class="f"><span>Marking scheme (opsional) · satu aspek per baris: <code>M atau J | deskripsi | syarat | nilai maks | sub-kriteria</code></span>
+   <div class="row"><input type="text" id="hfMSName" value="${esc(s.msName||"")}" placeholder="Nama kriteria, mis. C1 Measurements" style="flex:1;min-width:180px"><button type="button" class="btn sm primary" id="hLibOpen">📚 Ambil dari standar EI</button><label class="btn sm" style="display:inline-block">📂 Impor dari Excel CIS<input type="file" data-keepfile="hms" accept=".xlsx,.xls" style="display:none"></label></div>
+   <div id="hLibBox"></div>
+   <textarea id="hfMS" rows="5" placeholder="M | Measurement 1 - H1 to vertical centerline | ±2 mm | 0.75&#10;J | Kerapian trunking | | 2">${esc(hMSText(s.ms))}</textarea>
+   <span class="note">M = Ya/Tidak (dapat nilai penuh atau 0). J = judgement 0–3 (nilai = skor/3 × maks). Total saat ini: <b id="hfMSTot">${fmt((s.ms||[]).reduce((a,x)=>a+(+x.max||0),0),2)}</b></span></div>
   <label class="f">Tujuan / instruksi<textarea id="hfNote" rows="2">${esc(s.note||"")}</textarea></label>
   <div><button class="btn primary" type="submit">${isNew?"Buat sesi":"Simpan perubahan"}</button></div></form>`;
 }
@@ -77,7 +95,7 @@ function hSessionView(S){
   const tB=hNum(S.tBaca), tK=hNum(S.tKerja), tD=hNum(S.tDev);
   const head=`<div class="panel"><div class="spread"><div><div class="label">${dlabel(S.date,true)} · ${esc(hJenis(S))} · ${items.length} soal × ${reps} percobaan</div><h3 style="margin:2px 0">${esc(S.title)}</h3></div>${canWrite()?`<span class="row no-print"><button class="btn sm" data-hform="${esc(S.ref)}">Ubah</button><button class="btn sm" data-hdel="${esc(S.ref)}">Hapus</button></span>`:""}</div>
     ${S.note?`<p>${esc(S.note).replace(/\n/g,"<br>")}</p>`:""}
-    <div class="row">${m.map(k=>`<span class="chip">${H_M[k]}</span>`).join("")}${tB?`<span class="chip">target baca ${fmt(tB,tB%1?1:0)} mnt</span>`:""}${tK?`<span class="chip">target kerja ${fmt(tK,tK%1?1:0)} mnt</span>`:""}${(S.extra||[]).map(x=>`<span class="chip">${esc(x.name)}${x.max?" /"+x.max:""}</span>`).join("")}${tD!==null?`<span class="chip">target deviasi ≤ ${fmt(tD,1)} mm</span>`:""}</div>
+    <div class="row">${m.map(k=>`<span class="chip">${H_M[k]}</span>`).join("")}${tB?`<span class="chip">target baca ${fmt(tB,tB%1?1:0)} mnt</span>`:""}${tK?`<span class="chip">target kerja ${fmt(tK,tK%1?1:0)} mnt</span>`:""}${(S.extra||[]).map(x=>`<span class="chip">${esc(x.name)}${x.max?" /"+x.max:""}</span>`).join("")}${(S.ms||[]).length?`<span class="chip">${esc(S.msName||"Marking scheme")}: ${S.ms.length} aspek · ${fmt(S.ms.reduce((a,x)=>a+(+x.max||0),0),2)}</span>`:""}${tD!==null?`<span class="chip">target deviasi ≤ ${fmt(tD,1)} mm</span>`:""}</div>
     ${hFiles(S,"",`File soal sesi`)}
     <p class="note">oleh ${esc(S.by||"–")}</p></div>`;
   if(!items.length) return head+'<div class="empty">Sesi ini belum punya soal. Ketuk Ubah untuk menambah.</div>';
@@ -94,6 +112,7 @@ function hSessionView(S){
     return `<div class="entry" style="border-left-color:${compColor(c)}"><div class="spread"><b>${badge(c,true)} ${esc(c.name)}</b><span class="row">${hPhaseBtns(S,item,rep,c,r)}</span></div>
       <div class="grid g3 h-g">${m.includes("baca")?fld("baca","Waktu baca"+(tB?` <small class="muted">target ${mmss(tB*60)}</small>`:""),`<span class="row">${cmp(r.baca,p.baca,tB?tB*60:null)}</span>`):""}${m.includes("kerja")?fld("kerja","Waktu kerja"+(tK?` <small class="muted">target ${mmss(tK*60)}</small>`:""),`<span class="row">${cmp(r.kerja,p.kerja,tK?tK*60:null)}</span>`):""}
       ${m.includes("salah")?fld("salah","Kesalahan",`<span class="row">${cmp(hNum(r.salah),hNum(p.salah),null)}</span>`):""}${m.includes("dev")?fld("dev","Deviasi maks (mm)"+(tD!==null?` <small class="muted">target ≤ ${fmt(tD,1)}</small>`:""),`<span class="row">${hNum(r.dev)!==null&&tD!==null?(hNum(r.dev)<=tD?'<span class="chip good">✓ toleransi</span>':'<span class="chip bad">di luar toleransi</span>'):""}</span>`):""}${m.includes("skor")?fld("skor","Skor (0–100)"):""}${(S.extra||[]).map(x=>fld("x_"+x.id,esc(x.name)+(x.max?" (maks "+x.max+")":""))).join("")}</div>
+      ${hMSBlock(S,key,r)}
       <label class="f">Catatan juri<input ${ro} type="text" id="hx-note-${c.id}" data-hres="${key}" data-f="note" value="${esc(r.note||"")}" placeholder="Bagian yang salah baca, simbol yang belum hafal, dll."></label>
       ${hFiles(S,null,"Foto hasil kerja",key,r)}
       ${r.by?`<div class="note">dicatat ${esc(r.by)}</div>`:""}</div>`; }).join("");
@@ -101,6 +120,51 @@ function hSessionView(S){
     <p class="note no-print">Waktu bisa dari stopwatch atau diketik manual: <b>3:25</b> (3 menit 25 detik) atau <b>3,5</b> (menit). Data tersimpan otomatis.</p></div>`+hSummary(S);
 }
 
+function hMSBlock(S,key,r){
+  const ms=S.ms||[]; if(!ms.length) return ""; const q=hMS(S,r); const v=r.ms||{}; const ro=!canWrite();
+  let lastSc=null; const scName=sc=>{ const x=H_STD().subs.find(y=>y.id===sc)||(hLibSrc?.subs||[]).find(y=>y.id===sc); return x?x.name:""; };
+  const rows=ms.map((a,i)=>{ const x=v[a.id]; const hdr=a.sc&&a.sc!==lastSc?`<div class="ms-sc">${esc(a.sc)} ${esc(scName(a.sc))} <span class="muted">· ${fmt(ms.filter(y=>y.sc===a.sc).reduce((s,y)=>s+y.max,0),2)}</span></div>`:""; lastSc=a.sc; const has=x!==undefined&&x!==null&&x!==""; const pts=has?(a.t==="J"?(+x/3)*a.max:(+x?a.max:0)):null;
+    const btn=(val,lbl,cls)=>`<button type="button" class="ms-b ${has&&+x===val?"on "+cls:""}" ${ro?"disabled":""} data-hmsv="${esc(key)}|${esc(a.id)}|${val}">${lbl}</button>`;
+    const jd=a.t==="J"&&a.jd?`<details class="ms-jd"><summary>Arti skor 0–3</summary>${[0,1,2,3].filter(k=>a.jd[k]).map(k=>`<div><b>${k}</b> ${esc(a.jd[k])}</div>`).join("")}</details>`:"";
+    return `${hdr}<div class="ms-r"><div class="ms-d"><span class="ms-n">${a.sc?esc(a.sc)+"·":""}${a.t}${ms.filter((y,k)=>k<=i&&(y.sc||"")===(a.sc||"")).length}</span> ${esc(a.d)}${a.req?` <small class="muted">· ${esc(a.req)}</small>`:""}${jd}</div><div class="ms-c">${a.t==="M"?btn(1,"Ya","good")+btn(0,"Tidak","bad"):[0,1,2,3].map(k=>btn(k,String(k),k>=2?"good":k===1?"warn":"bad")).join("")}<span class="ms-p">${pts===null?"–":fmt(pts,2)} / ${fmt(a.max,2)}</span></div></div>`; }).join("");
+  return `<div class="ms-box"><div class="spread"><b>${esc(S.msName||"Marking scheme")}</b><span class="chip ${q.filled===q.all?"good":"warn"}">${fmt(q.sum,2)} / ${fmt(q.max,2)}${q.pct!==null?` · ${Math.round(q.pct)}%`:""} · ${q.filled}/${q.all} aspek</span></div>${rows}
+  ${canWrite()?`<div class="row no-print" style="margin-top:6px"><button type="button" class="btn sm" data-hmsall="${esc(key)}|1">Semua M = Ya</button><button type="button" class="btn sm" data-hmsall="${esc(key)}|clr">Kosongkan</button></div>`:""}</div>`;
+}
+const hGet=(S,r,k)=>{ if(k!=="ms") return r[k]; const q=hMS(S,r); return q&&q.filled?q.sum:undefined; };
+let hLibSrc=null;
+function hLibShow(src,label){ hLibSrc=src; const box=document.getElementById("hLibBox"); if(!box) return; const crit=src.crit||{}; const groups={}; src.subs.forEach(x=>(groups[x.crit]=groups[x.crit]||[]).push(x));
+  box.innerHTML=`<div class="lib"><div class="spread"><b>${esc(label)}</b><button type="button" class="btn sm" id="hLibClose">Tutup</button></div><p class="note">Centang sub-kriteria yang dipakai di sesi ini. Aspeknya ditambahkan ke daftar di bawah, dan setelah itu masih bisa diedit atau dihapus.</p>
+  ${Object.keys(groups).sort().map(k=>`<div class="lib-g"><div class="lib-h">${esc(k)} · ${esc(crit[k]?.name||groups[k][0].critName||"")}${crit[k]?.mark?` <span class="muted">(${crit[k].mark})</span>`:""}</div>${groups[k].map(x=>`<label class="lib-i"><input type="checkbox" data-hlibsc="${esc(x.id)}"> <b>${esc(x.id)}</b> ${esc(x.name)} <span class="muted">· ${x.aspects.length} aspek · ${fmt(x.max??x.aspects.reduce((a,y)=>a+y.max,0),2)}</span></label>`).join("")}</div>`).join("")}
+  <div class="row"><button type="button" class="btn sm primary" id="hLibAdd">Tambahkan ke marking scheme</button><label class="row" style="gap:6px"><input type="checkbox" id="hLibRepl" checked> ganti isi yang sudah ada</label></div></div>`; }
+function hLibAdd(){ const ids=[...document.querySelectorAll("[data-hlibsc]:checked")].map(x=>x.dataset.hlibsc); if(!ids.length){ toast("Centang minimal satu sub-kriteria."); return; }
+  const subs=hLibSrc.subs.filter(x=>ids.includes(x.id)); subs.forEach(x=>x.aspects.forEach(a=>{ if(a.jd) hImpJD[a.d]=a.jd; }));
+  const lines=subs.flatMap(x=>x.aspects.map(a=>[a.t,a.d,a.req||"",a.max,x.id].join(" | "))).join("\n");
+  const ta=document.getElementById("hfMS"), nm=document.getElementById("hfMSName"), repl=document.getElementById("hLibRepl")?.checked;
+  ta.value=repl||!ta.value.trim()?lines:ta.value.trim()+"\n"+lines; const nmv=subs.length===1?subs[0].id+" "+subs[0].name:subs.map(x=>x.id).join(" + ");
+  if(repl||!nm.value) nm.value=nmv; else nm.value+=" + "+subs.map(x=>x.id).join(" + ");
+  document.getElementById("hLibBox").innerHTML=""; hMSTot(); toast(`${subs.reduce((a,x)=>a+x.aspects.length,0)} aspek ditambahkan. Simpan sesi untuk memakai.`); }
+function hMSTot(){ const t=document.getElementById("hfMS"), o=document.getElementById("hfMSTot"); if(t&&o) o.textContent=fmt(hParseMS(t.value).reduce((a,x)=>a+x.max,0),2); }
+async function hImportCIS(file){
+  try{ await loadXLSX(); }catch(e){ toast(e.message); return; }
+  let rows; try{ const wb=XLSX.read(await file.arrayBuffer(),{type:"array"}); rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:""}); }catch(e){ toast("Berkas tidak bisa dibaca: "+e.message); return; }
+  const hi=rows.findIndex(r=>r.some(x=>/aspect\s*type/i.test(String(x).replace(/\s+/g," ")))); if(hi<0){ toast("Bukan format marking scheme CIS (kolom Aspect Type tidak ditemukan)."); return; }
+  const H=rows[hi].map(x=>String(x).replace(/\s+/g," ").trim().toLowerCase()); const col=re=>H.findIndex(x=>re.test(x));
+  const cT=col(/aspect type/), cD=col(/aspect - description|aspect description/), cJ=col(/judg score/), cX=col(/extra aspect/), cR=col(/requirement/), cM=col(/max mark/), cN=col(/sub criterion name|name or description/);
+  const subs=[]; let cur=null; const out=[];
+  rows.forEach((r,ri)=>{ const a0=String(r[0]||"").trim(); const t=ri>hi?String(r[cT]||"").trim().toUpperCase():"";
+    if(/^[A-Z]\d+$/.test(a0)&&cN>=0){ cur={ id:a0, name:String(r[cN]||"").trim(), crit:a0[0], aspects:[] }; subs.push(cur); return; }
+    if(ri<=hi&&!/^[A-Z]\d+$/.test(a0)) return;
+    if(t==="M"||t==="J"){ const extra=String(r[cX]||"").trim(), req=String(r[cR]||"").trim(); const a={ t, d:String(r[cD]||"").trim(), req:t==="M"?(extra||(/yes\/no/i.test(req)?"":req)):"", max:hNum(r[cM])||0, jd:t==="J"?{}:undefined }; out.push(a); if(!cur){ cur={id:"",name:"",crit:"-",aspects:[]}; subs.push(cur); } cur.aspects.push(a); return; }
+    const js=String(r[cJ]??"").trim(); if(js!==""&&out.length&&out[out.length-1].t==="J") out[out.length-1].jd[js]=String(r[cX]||"").trim(); });
+  const good=subs.filter(x=>x.aspects.length); good.forEach(x=>x.max=x.aspects.reduce((a,y)=>a+y.max,0));
+  if(!good.length){ toast("Tidak ada aspek M/J di berkas ini."); return; }
+  const crit={}; rows.forEach(r=>{ const k=String(r[0]||"").trim(); if(/^[A-Z]$/.test(k)&&String(r[1]||"").trim()) crit[k]={ name:String(r[1]).trim(), mark:hNum(r.find((v,i)=>i>1&&hNum(v)!==null)) }; });
+  if(good.length>1){ hLibShow({crit,subs:good},`Isi berkas: ${good.length} sub-kriteria, ${out.length} aspek`); toast("Pilih sub-kriteria yang dipakai."); return; }
+  hLibSrc={crit,subs:good}; good[0].aspects.forEach(a=>{ if(a.jd) hImpJD[a.d]=a.jd; });
+  const ta=document.getElementById("hfMS"); if(ta) ta.value=good[0].aspects.map(a=>[a.t,a.d,a.req,a.max,good[0].id].join(" | ")).join("\n");
+  const nm=document.getElementById("hfMSName"); if(nm&&!nm.value) nm.value=(good[0].id+" "+good[0].name).trim(); hMSTot();
+  toast(`${out.length} aspek diimpor (total ${fmt(out.reduce((a,x)=>a+x.max,0),2)}). Periksa lalu Simpan.`);
+}
 function hFiles(S,item,label,rkey,r){
   const list=rkey?((r&&r.files)||[]):(S.files||[]).filter(f=>(f.item||"")===item);
   const tgt=rkey?"hr:"+rkey:"hs:"+(item||"-");
@@ -152,12 +216,12 @@ function hRekap(all){
   const trendChip=(a,b,lbl)=>{ if(a===null||b===null||!a) return ""; const d=Math.round((b-a)/a*100); return `<span class="chip ${d<=0?"good":"warn"}">${lbl} ${d>0?"+":""}${d}%</span>`; };
   return order.map(j=>{ const ss=groups[j];
     const sum=A.comps.map(c=>{ const st=ss.map(S=>hStats(S,c.id)).filter(x=>x.n);
-      if(!st.length) return `<tr><td>${badge(c,true)} ${esc(c.name)}</td><td colspan="7" class="muted">belum ada hasil</td></tr>`;
+      if(!st.length) return `<tr><td>${badge(c,true)} ${esc(c.name)}</td><td colspan="8" class="muted">belum ada hasil</td></tr>`;
       const av=k=>hAvg(st.map(x=>x[k])); const fst=st[0], lst=st[st.length-1];
-      return `<tr><td>${badge(c,true)} ${esc(c.name)}</td><td class="num">${st.length}</td><td class="num">${f(av("baca"),"baca")}</td><td class="num">${f(av("kerja"),"kerja")}</td><td class="num">${f(av("salah"))}</td><td class="num">${f(av("dev"))}</td><td class="num">${f(av("pct"),"pct")}</td><td>${st.length>1?trendChip(fst.baca,lst.baca,"baca")+trendChip(fst.kerja,lst.kerja,"kerja")+(fst.salah!==null&&lst.salah!==null?`<span class="chip ${lst.salah<=fst.salah?"good":"warn"}">salah ${fmt(fst.salah,1)}→${fmt(lst.salah,1)}</span>`:""):'<span class="muted">1 sesi</span>'}</td></tr>`; }).join("");
-    const hist=ss.slice().reverse().map(S=>`<tr><td><a href="#harian" data-hgoto="${esc(S.ref)}">${dlabel(S.date)}</a></td><td>${esc(S.title)}</td>${A.comps.map(c=>{ const x=hStats(S,c.id); return `<td class="num">${x.n?[x.baca!==null?"B "+mmss(x.baca):"",x.kerja!==null?"K "+mmss(x.kerja):"",x.salah!==null?"S "+fmt(x.salah,1):"",x.dev!==null?"D "+fmt(x.dev,1):"",x.pct!==null?Math.round(x.pct)+"%":""].filter(Boolean).join(" · "):"–"}</td>`; }).join("")}</tr>`).join("");
+      return `<tr><td>${badge(c,true)} ${esc(c.name)}</td><td class="num">${st.length}</td><td class="num">${f(av("baca"),"baca")}</td><td class="num">${f(av("kerja"),"kerja")}</td><td class="num">${f(av("salah"))}</td><td class="num">${f(av("dev"))}</td><td class="num">${f(av("pct"),"pct")}</td><td class="num">${f(av("ms"),"pct")}</td><td>${st.length>1?trendChip(fst.baca,lst.baca,"baca")+trendChip(fst.kerja,lst.kerja,"kerja")+(fst.salah!==null&&lst.salah!==null?`<span class="chip ${lst.salah<=fst.salah?"good":"warn"}">salah ${fmt(fst.salah,1)}→${fmt(lst.salah,1)}</span>`:"")+(fst.ms!==null&&lst.ms!==null?`<span class="chip ${lst.ms>=fst.ms?"good":"warn"}">MS ${Math.round(fst.ms)}%→${Math.round(lst.ms)}%</span>`:""):'<span class="muted">1 sesi</span>'}</td></tr>`; }).join("");
+    const hist=ss.slice().reverse().map(S=>`<tr><td><a href="#harian" data-hgoto="${esc(S.ref)}">${dlabel(S.date)}</a></td><td>${esc(S.title)}</td>${A.comps.map(c=>{ const x=hStats(S,c.id); return `<td class="num">${x.n?[x.baca!==null?"B "+mmss(x.baca):"",x.kerja!==null?"K "+mmss(x.kerja):"",x.salah!==null?"S "+fmt(x.salah,1):"",x.dev!==null?"D "+fmt(x.dev,1):"",x.pct!==null?Math.round(x.pct)+"%":"",x.ms!==null?"MS "+Math.round(x.ms)+"%":""].filter(Boolean).join(" · "):"–"}</td>`; }).join("")}</tr>`).join("");
     return `<div class="panel"><div class="spread"><h3 style="margin:0">${esc(j)}</h3><span class="chip">${ss.length} sesi</span></div>
-      <div class="tbl-wrap"><table class="h-sum"><thead><tr><th>Peserta</th><th>Sesi</th><th>Baca</th><th>Kerja</th><th>Salah/soal</th><th>Dev (mm)</th><th>Kriteria</th><th>Perkembangan (sesi pertama → terakhir)</th></tr></thead><tbody>${sum}</tbody></table></div>
+      <div class="tbl-wrap"><table class="h-sum"><thead><tr><th>Peserta</th><th>Sesi</th><th>Baca</th><th>Kerja</th><th>Salah/soal</th><th>Dev (mm)</th><th>Kriteria</th><th>Marking scheme</th><th>Perkembangan (sesi pertama → terakhir)</th></tr></thead><tbody>${sum}</tbody></table></div>
       <details><summary class="note">Riwayat sesi (${ss.length})</summary><div class="tbl-wrap"><table class="h-sum"><thead><tr><th>Tanggal</th><th>Sesi</th>${A.comps.map(c=>`<th>${esc(c.name)}</th>`).join("")}</tr></thead><tbody>${hist}</tbody></table></div></details></div>`; }).join("")
   +`<p class="note">Rata-rata dari semua soal dan percobaan. B = baca, K = kerja (menit:detik), S = kesalahan per soal, D = deviasi maks, % = rata-rata kriteria tambahan terhadap nilai maksimumnya.</p>`;
 }
@@ -175,8 +239,9 @@ function hLapSesi(S,only){
   const items=S.items||[], reps=+S.reps||1, m=S.m||[], X=S.extra||[];
   const tB=hNum(S.tBaca), tK=hNum(S.tKerja), tD=hNum(S.tDev);
   const lab={baca:"Baca",kerja:"Kerja",salah:"Salah",dev:"Dev (mm)",skor:"Skor"};
-  const cols=m.map(k=>({k,l:lab[k]})).concat(X.map(x=>({k:"x_"+x.id,l:x.name+(x.max?" /"+x.max:"")})));
-  const val=(r,k)=>{ const v=r[k]; if(v===undefined||v===null||v==="") return "–"; if(k==="baca"||k==="kerja") return mmss(v); return fmt(hNum(v),k==="dev"?1:0); };
+  const msMax=(S.ms||[]).reduce((a,x)=>a+(+x.max||0),0);
+  const cols=m.map(k=>({k,l:lab[k]})).concat(X.map(x=>({k:"x_"+x.id,l:x.name+(x.max?" /"+x.max:"")}))).concat((S.ms||[]).length?[{k:"ms",l:(S.msName||"Marking scheme")+" /"+fmt(msMax,2)}]:[]);
+  const val=(r,k)=>{ const v=hGet(S,r,k); if(v===undefined||v===null||v==="") return "–"; if(k==="baca"||k==="kerja") return mmss(v); return fmt(hNum(v),k==="dev"?1:k==="ms"?2:0); };
   const mark=(r,k)=>{ const v=hNum(r[k]); if(v===null) return ""; if(k==="baca"&&tB) return v<=tB*60?" ✓":" ✗"; if(k==="kerja"&&tK) return v<=tK*60?" ✓":" ✗"; if(k==="dev"&&tD!==null) return v<=tD?" ✓":" ✗"; return ""; };
   const soal=items.filter(i=>(S.files||[]).some(f=>f.item===i.id)).map(i=>`<div><b>${esc(i.name)}</b>${hImgs((S.files||[]).filter(f=>f.item===i.id),30)}</div>`).join("")+((S.files||[]).some(f=>!f.item)?`<div><b>File sesi</b>${hImgs((S.files||[]).filter(f=>!f.item),30)}</div>`:"");
   const meta=`<table class="r-meta"><tr><td>Tanggal</td><td><b>${dlabel(S.date,true)} ${S.date.slice(0,4)}</b></td></tr><tr><td>Jenis penilaian</td><td><b>${esc(hJenis(S))}</b></td></tr><tr><td>Sesi</td><td><b>${esc(S.title)}</b> · ${items.length} soal (${items.map(i=>esc(i.name)).join(", ")}) × ${reps} percobaan</td></tr>
@@ -184,18 +249,21 @@ function hLapSesi(S,only){
   const comps=A.comps.filter(c=>!only||c.id===only);
   const pages=comps.map((c,ci)=>{
     const rows=items.map(i=>Array.from({length:reps},(_,x)=>{ const r=hRes(S.ref,i.id,x+1,c.id); return `<tr><td>${x===0?`<b>${esc(i.name)}</b>`:""}</td><td class="r-n">P${x+1}</td>${cols.map(o=>`<td class="r-n">${val(r,o.k)}${mark(r,o.k)}</td>`).join("")}</tr>`; }).join("")).join("");
-    const avg=Array.from({length:reps},(_,x)=>{ const st=hStats({...S},c.id,x+1); return `<tr class="r-tot"><td>${x===0?"Rata-rata":""}</td><td class="r-n">P${x+1}</td>${cols.map(o=>{ let v; if(o.k.startsWith("x_")) v=hAvg(items.map(i=>hNum(hRes(S.ref,i.id,x+1,c.id)[o.k]))); else v=st[o.k]; return `<td class="r-n">${v===null||v===undefined?"–":(o.k==="baca"||o.k==="kerja"?mmss(v):fmt(v,o.k==="dev"||o.k==="salah"?1:0))}</td>`; }).join("")}</tr>`; }).join("");
+    const avg=Array.from({length:reps},(_,x)=>{ const st=hStats({...S},c.id,x+1); return `<tr class="r-tot"><td>${x===0?"Rata-rata":""}</td><td class="r-n">P${x+1}</td>${cols.map(o=>{ let v; if(o.k.startsWith("x_")||o.k==="ms") v=hAvg(items.map(i=>hNum(hGet(S,hRes(S.ref,i.id,x+1,c.id),o.k)))); else v=st[o.k]; return `<td class="r-n">${v===null||v===undefined?"–":(o.k==="baca"||o.k==="kerja"?mmss(v):fmt(v,o.k==="dev"||o.k==="salah"?1:o.k==="ms"?2:0))}</td>`; }).join("")}</tr>`; }).join("");
+    const msDet=(S.ms||[]).length?`<div class="r-sec"><h4><span>Rincian ${esc(S.msName||"marking scheme")}</span></h4><table class="r-tbl"><thead><tr><th>No</th><th>Aspek</th><th>Syarat</th><th class="r-n">Maks</th>${items.flatMap(i=>Array.from({length:reps},(_,x)=>`<th class="r-n">${esc(i.name)} P${x+1}</th>`)).join("")}</tr></thead><tbody>${S.ms.map((a,ai)=>`<tr><td>${a.sc?esc(a.sc)+"·":""}${a.t}${S.ms.filter((y,k)=>k<=ai&&(y.sc||"")===(a.sc||"")).length}</td><td>${esc(a.d)}</td><td>${esc(a.req||"")}</td><td class="r-n">${fmt(a.max,2)}</td>${items.flatMap(i=>Array.from({length:reps},(_,x)=>{ const v=(hRes(S.ref,i.id,x+1,c.id).ms||{})[a.id]; return `<td class="r-n">${v===undefined?"–":a.t==="M"?(+v?"Ya":"Tidak"):v}</td>`; })).join("")}</tr>`).join("")}
+      <tr class="r-tot"><td colspan="4">Total</td>${items.flatMap(i=>Array.from({length:reps},(_,x)=>{ const q=hMS(S,hRes(S.ref,i.id,x+1,c.id)); return `<td class="r-n">${q.filled?fmt(q.sum,2):"–"}</td>`; })).join("")}</tr></tbody></table></div>`:"";
     const f=hStats(S,c.id,1), l=hStats(S,c.id,reps); const tr=[];
     if(reps>1){ [["baca","Waktu baca"],["kerja","Waktu kerja"]].forEach(([k,n])=>{ if(f[k]&&l[k]!==null){ const d=Math.round((l[k]-f[k])/f[k]*100); tr.push(`${n}: ${mmss(f[k])} → ${mmss(l[k])} (<b>${d>0?"+":""}${d}%</b>${d<0?", lebih cepat":d>0?", lebih lambat":""})`); } });
-      if(f.salah!==null&&l.salah!==null) tr.push(`Kesalahan per soal: ${fmt(f.salah,1)} → ${fmt(l.salah,1)}`); if(f.dev!==null&&l.dev!==null) tr.push(`Deviasi rata-rata: ${fmt(f.dev,1)} → ${fmt(l.dev,1)} mm`); if(f.pct!==null&&l.pct!==null) tr.push(`Kriteria tambahan: ${Math.round(f.pct)}% → ${Math.round(l.pct)}%`); }
+      if(f.salah!==null&&l.salah!==null) tr.push(`Kesalahan per soal: ${fmt(f.salah,1)} → ${fmt(l.salah,1)}`); if(f.dev!==null&&l.dev!==null) tr.push(`Deviasi rata-rata: ${fmt(f.dev,1)} → ${fmt(l.dev,1)} mm`); if(f.pct!==null&&l.pct!==null) tr.push(`Kriteria tambahan: ${Math.round(f.pct)}% → ${Math.round(l.pct)}%`); if(f.ms!==null&&l.ms!==null) tr.push(`${esc(S.msName||"Marking scheme")}: ${Math.round(f.ms)}% → ${Math.round(l.ms)}%`); }
     const tot=hStats(S,c.id);
     const notes=[]; const photos=[]; items.forEach(i=>{ for(let x=1;x<=reps;x++){ const r=hRes(S.ref,i.id,x,c.id); if(r.note) notes.push(`<li><b>${esc(i.name)} P${x}:</b> ${esc(r.note)}</li>`); (r.files||[]).forEach(fl=>photos.push({...fl,name:i.name+" · P"+x})); } });
     const by=[...new Set(items.flatMap(i=>Array.from({length:reps},(_,x)=>hRes(S.ref,i.id,x+1,c.id).by).filter(Boolean)))].join(", ");
     return `<div class="${ci?"h-page":""}">${hHead("LAPORAN PENILAIAN HARIAN",esc(hJenis(S)))}${meta}
       <div class="r-score"><div><div class="r-small">Peserta</div><div style="font-size:18px;font-weight:700">${esc(c.name)}</div>${c.kelas?`<div class="r-small">kelas ${esc(c.kelas)}</div>`:""}</div>
-      <div class="r-kv">Rata-rata seluruh soal: ${[tot.baca!==null?"baca <b>"+mmss(tot.baca)+"</b>":"",tot.kerja!==null?"kerja <b>"+mmss(tot.kerja)+"</b>":"",tot.salah!==null?"kesalahan <b>"+fmt(tot.salah,1)+"</b>/soal":"",tot.dev!==null?"deviasi <b>"+fmt(tot.dev,1)+"</b> mm":"",tot.pct!==null?"kriteria <b>"+Math.round(tot.pct)+"%</b>":""].filter(Boolean).join(" · ")||"belum ada hasil"}<br>Dicatat oleh: ${esc(by||"–")}</div></div>
+      <div class="r-kv">Rata-rata seluruh soal: ${[tot.baca!==null?"baca <b>"+mmss(tot.baca)+"</b>":"",tot.kerja!==null?"kerja <b>"+mmss(tot.kerja)+"</b>":"",tot.salah!==null?"kesalahan <b>"+fmt(tot.salah,1)+"</b>/soal":"",tot.dev!==null?"deviasi <b>"+fmt(tot.dev,1)+"</b> mm":"",tot.pct!==null?"kriteria <b>"+Math.round(tot.pct)+"%</b>":"",tot.ms!==null?esc(S.msName||"marking scheme")+" <b>"+Math.round(tot.ms)+"%</b>":""].filter(Boolean).join(" · ")||"belum ada hasil"}<br>Dicatat oleh: ${esc(by||"–")}</div></div>
       <div class="r-sec"><h4><span>Hasil per soal dan percobaan</span></h4><table class="r-tbl"><thead><tr><th>Soal</th><th class="r-n">Perc.</th>${cols.map(o=>`<th class="r-n">${esc(o.l)}</th>`).join("")}</tr></thead><tbody>${rows}${avg}</tbody></table>
       <div class="r-small" style="text-transform:none">Waktu dalam menit:detik. ✓ = memenuhi target, ✗ = melewati target.</div></div>
+      ${msDet}
       ${tr.length?`<div class="r-sec"><h4><span>Perkembangan percobaan 1 → ${reps}</span></h4><ul class="r-list">${tr.map(t=>`<li>${t}</li>`).join("")}</ul></div>`:""}
       ${notes.length?`<div class="r-sec"><h4><span>Catatan juri</span></h4><ul class="r-list">${notes.join("")}</ul></div>`:""}
       ${soal?`<div class="r-sec"><h4><span>Gambar soal</span></h4><div class="h-soal">${soal}</div></div>`:""}
@@ -210,15 +278,15 @@ function hLapRekap(from,to,only){
   const order=Object.keys(g).sort((a,b)=>{ const ia=H_JENIS.indexOf(a), ib=H_JENIS.indexOf(b); return (ia<0?99:ia)-(ib<0?99:ib)||a.localeCompare(b); });
   const F=(v,k)=>v===null||v===undefined?"–":(k==="t"?mmss(v):k==="p"?Math.round(v)+"%":fmt(v,1));
   const secs=order.map(j=>{ const ss=g[j];
-    const sum=comps.map(c=>{ const st=ss.map(S=>hStats(S,c.id)).filter(x=>x.n); if(!st.length) return `<tr><td>${esc(c.name)}</td><td colspan="8">belum ada hasil</td></tr>`; const av=k=>hAvg(st.map(x=>x[k])); const a=st[0], b=st[st.length-1]; const d=(a.kerja&&b.kerja&&st.length>1)?Math.round((b.kerja-a.kerja)/a.kerja*100):null;
-      return `<tr><td><b>${esc(c.name)}</b></td><td class="r-n">${st.length}</td><td class="r-n">${F(av("baca"),"t")}</td><td class="r-n">${F(av("kerja"),"t")}</td><td class="r-n">${F(av("salah"))}</td><td class="r-n">${F(av("dev"))}</td><td class="r-n">${F(av("pct"),"p")}</td><td class="r-n">${st.length>1?F(a.kerja,"t")+" → "+F(b.kerja,"t"):"–"}</td><td class="r-n">${d===null?"–":(d>0?"+":"")+d+"%"}</td></tr>`; }).join("");
-    const hist=ss.map(S=>`<tr><td>${dlabel(S.date)}</td><td>${esc(S.title)}</td>${comps.map(c=>{ const x=hStats(S,c.id); return `<td class="r-n">${x.n?[x.baca!==null?"B "+mmss(x.baca):"",x.kerja!==null?"K "+mmss(x.kerja):"",x.salah!==null?"S "+fmt(x.salah,1):"",x.dev!==null?"D "+fmt(x.dev,1):"",x.pct!==null?Math.round(x.pct)+"%":""].filter(Boolean).join(" · "):"–"}</td>`; }).join("")}</tr>`).join("");
+    const sum=comps.map(c=>{ const st=ss.map(S=>hStats(S,c.id)).filter(x=>x.n); if(!st.length) return `<tr><td>${esc(c.name)}</td><td colspan="9">belum ada hasil</td></tr>`; const av=k=>hAvg(st.map(x=>x[k])); const a=st[0], b=st[st.length-1]; const d=(a.kerja&&b.kerja&&st.length>1)?Math.round((b.kerja-a.kerja)/a.kerja*100):null;
+      return `<tr><td><b>${esc(c.name)}</b></td><td class="r-n">${st.length}</td><td class="r-n">${F(av("baca"),"t")}</td><td class="r-n">${F(av("kerja"),"t")}</td><td class="r-n">${F(av("salah"))}</td><td class="r-n">${F(av("dev"))}</td><td class="r-n">${F(av("pct"),"p")}</td><td class="r-n">${F(av("ms"),"p")}</td><td class="r-n">${st.length>1?F(a.kerja,"t")+" → "+F(b.kerja,"t"):"–"}</td><td class="r-n">${d===null?"–":(d>0?"+":"")+d+"%"}</td></tr>`; }).join("");
+    const hist=ss.map(S=>`<tr><td>${dlabel(S.date)}</td><td>${esc(S.title)}</td>${comps.map(c=>{ const x=hStats(S,c.id); return `<td class="r-n">${x.n?[x.baca!==null?"B "+mmss(x.baca):"",x.kerja!==null?"K "+mmss(x.kerja):"",x.salah!==null?"S "+fmt(x.salah,1):"",x.dev!==null?"D "+fmt(x.dev,1):"",x.pct!==null?Math.round(x.pct)+"%":"",x.ms!==null?"MS "+Math.round(x.ms)+"%":""].filter(Boolean).join(" · "):"–"}</td>`; }).join("")}</tr>`).join("");
     return `<div class="r-sec"><h4><span>${esc(j)}</span><span>${ss.length} sesi</span></h4>
-      <table class="r-tbl"><thead><tr><th>Peserta</th><th class="r-n">Sesi</th><th class="r-n">Baca</th><th class="r-n">Kerja</th><th class="r-n">Salah/soal</th><th class="r-n">Dev</th><th class="r-n">Kriteria</th><th class="r-n">Kerja awal → akhir</th><th class="r-n">Δ</th></tr></thead><tbody>${sum}</tbody></table>
+      <table class="r-tbl"><thead><tr><th>Peserta</th><th class="r-n">Sesi</th><th class="r-n">Baca</th><th class="r-n">Kerja</th><th class="r-n">Salah/soal</th><th class="r-n">Dev</th><th class="r-n">Kriteria</th><th class="r-n">MS</th><th class="r-n">Kerja awal → akhir</th><th class="r-n">Δ</th></tr></thead><tbody>${sum}</tbody></table>
       <table class="r-tbl"><thead><tr><th>Tanggal</th><th>Sesi</th>${comps.map(c=>`<th>${esc(c.name)}</th>`).join("")}</tr></thead><tbody>${hist}</tbody></table></div>`; }).join("");
   return `<div class="paper">${hHead("REKAP PENILAIAN HARIAN",dlabel(from,true)+" "+from.slice(0,4)+" – "+dlabel(to,true)+" "+to.slice(0,4))}
     <table class="r-meta"><tr><td>Periode</td><td><b>${dlabel(from,true)} ${from.slice(0,4)} s.d. ${dlabel(to,true)} ${to.slice(0,4)}</b></td></tr><tr><td>Peserta</td><td>${comps.map(c=>esc(c.name)).join(", ")}</td></tr><tr><td>Jumlah sesi</td><td>${ses.length} sesi · ${order.length} jenis penilaian</td></tr><tr><td>Musim</td><td>${esc(A.season.name)}</td></tr></table>
-    ${secs}<div class="r-small" style="text-transform:none;margin-top:6px">Rata-rata dari semua soal dan percobaan. B = baca, K = kerja (menit:detik), S = kesalahan per soal, D = deviasi maks (mm), % = kriteria tambahan terhadap nilai maksimum. Δ negatif = waktu kerja makin cepat.</div>
+    ${secs}<div class="r-small" style="text-transform:none;margin-top:6px">Rata-rata dari semua soal dan percobaan. B = baca, K = kerja (menit:detik), S = kesalahan per soal, D = deviasi maks (mm), % = kriteria tambahan terhadap nilai maksimum, MS = nilai marking scheme (%). Δ negatif = waktu kerja makin cepat.</div>
     <div class="r-sign"><div><div class="r-line"></div>Pembina</div><div><div class="r-line"></div>Asisten</div></div>${hFoot()}</div>`;
 }
 
@@ -226,14 +294,14 @@ function hSummary(S){
   const items=S.items||[], reps=+S.reps||1, m=S.m||[];
   const short={baca:"Baca",kerja:"Kerja",salah:"Salah",dev:"Dev",skor:"Skor"};
   (S.extra||[]).forEach(x=>short["x_"+x.id]=x.name.length>9?x.name.slice(0,8)+"…":x.name);
-  const cols=m.concat((S.extra||[]).map(x=>"x_"+x.id));
-  const val=(r,k)=>k==="baca"||k==="kerja"?mmss(r[k]):(r[k]===undefined||r[k]===""?"":fmt(hNum(r[k]),k==="dev"?1:0));
+  const cols=m.concat((S.extra||[]).map(x=>"x_"+x.id)).concat((S.ms||[]).length?["ms"]:[]); short.ms="MS";
+  const val=(r,k)=>{ const v=hGet(S,r,k); return k==="baca"||k==="kerja"?mmss(v):(v===undefined||v===""?"":fmt(hNum(v),k==="dev"?1:k==="ms"?2:0)); };
   const rows=items.map(i=>Array.from({length:reps},(_,x)=>`<tr><td>${x===0?`<b>${esc(i.name)}</b>`:""}</td><td class="num">P${x+1}</td>${A.comps.map(c=>{ const r=hRes(S.ref,i.id,x+1,c.id); return cols.map(k=>`<td class="num">${val(r,k)}</td>`).join(""); }).join("")}</tr>`).join("")).join("");
-  const avgRow=Array.from({length:reps},(_,x)=>`<tr class="tot"><td>${x===0?"<b>Rata-rata</b>":""}</td><td class="num">P${x+1}</td>${A.comps.map(c=>cols.map(k=>{ const a=hAvg(items.map(i=>{ const v=hRes(S.ref,i.id,x+1,c.id)[k]; return v===undefined||v===""?null:hNum(v); })); return `<td class="num"><b>${a===null?"":(k==="baca"||k==="kerja"?mmss(a):fmt(a,k==="dev"?1:k==="salah"?1:0))}</b></td>`; }).join("")).join("")}</tr>`).join("");
+  const avgRow=Array.from({length:reps},(_,x)=>`<tr class="tot"><td>${x===0?"<b>Rata-rata</b>":""}</td><td class="num">P${x+1}</td>${A.comps.map(c=>cols.map(k=>{ const a=hAvg(items.map(i=>{ const v=hGet(S,hRes(S.ref,i.id,x+1,c.id),k); return v===undefined||v===""?null:hNum(v); })); return `<td class="num"><b>${a===null?"":(k==="baca"||k==="kerja"?mmss(a):fmt(a,k==="dev"||k==="salah"?1:k==="ms"?2:0))}</b></td>`; }).join("")).join("")}</tr>`).join("");
   let trend="";
   if(reps>1) trend=`<div class="row">${A.comps.map(c=>{ const out=[]; ["baca","kerja"].filter(k=>m.includes(k)).forEach(k=>{ const a=hAvg(items.map(i=>hNum(hRes(S.ref,i.id,1,c.id)[k]))), b=hAvg(items.map(i=>hNum(hRes(S.ref,i.id,reps,c.id)[k]))); if(a&&b) { const d=Math.round((b-a)/a*100); out.push(`<span class="chip ${d<=0?"good":"warn"}">${esc(c.name)} · ${short[k]} ${d>0?"+":""}${d}% (P1→P${reps})</span>`);} }); return out.join(""); }).join("")}</div>`;
   return `<div class="panel"><div class="label">Ringkasan sesi</div>${trend}<div class="tbl-wrap"><table class="h-sum"><thead><tr><th rowspan="2">Soal</th><th rowspan="2"></th>${A.comps.map(c=>`<th colspan="${cols.length}" style="border-bottom:3px solid ${compColor(c)}">${esc(c.name)}</th>`).join("")}</tr><tr>${A.comps.map(()=>cols.map(k=>`<th>${short[k]}</th>`).join("")).join("")}</tr></thead><tbody>${rows}${avgRow}</tbody></table></div>
-  <p class="note">Baca/Kerja dalam menit:detik. Dev = deviasi maks (mm). Percobaan berikutnya dibandingkan dengan sebelumnya; turun = lebih cepat/lebih sedikit salah.</p></div>`;
+  <p class="note">Baca/Kerja dalam menit:detik. Dev = deviasi maks (mm). MS = nilai marking scheme. Percobaan berikutnya dibandingkan dengan sebelumnya; turun = lebih cepat/lebih sedikit salah.</p></div>`;
 }
 
 function hExportPanel(all){
@@ -273,7 +341,7 @@ document.addEventListener("click", async e=>{
   if(t.dataset.hform){ ui.hForm=t.dataset.hform; render(); document.getElementById("hForm")?.scrollIntoView({behavior:"smooth"}); return; }
   if(t.id==="hCancel"){ ui.hForm=null; render(); return; }
   if(t.dataset.htpl!==undefined){ const T=H_TPL[+t.dataset.htpl]; const set=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v; };
-    set("hfTitle",T.title); set("hfJenis",T.jenis||""); set("hfItems",T.items); set("hfReps",T.reps); set("hfTB",T.tBaca); set("hfTK",T.tKerja); set("hfNote",T.note); set("hfX",T.x||"");
+    set("hfTitle",T.title); set("hfJenis",T.jenis||""); set("hfItems",T.items); set("hfReps",T.reps); set("hfTB",T.tBaca); set("hfTK",T.tKerja); set("hfNote",T.note); set("hfX",T.x||""); set("hfMS",T.std?hStdLines(T.std):(T.ms||"")); set("hfMSName",T.std?hStdName(T.std):(T.msName||"")); hMSTot();
     document.querySelectorAll("[data-hm]").forEach(x=>x.checked=T.m.includes(x.dataset.hm)); return; }
   if(t.dataset.hdel){ const sref=t.dataset.hdel; const S=hSessions().find(s=>s.ref===sref);
     if(!confirm(`Hapus sesi "${S?.title||""}" beserta semua hasilnya?`)) return;
@@ -288,6 +356,12 @@ document.addEventListener("click", async e=>{
   if(t.dataset.hlap){ ui.hPrint=t.dataset.hlap==="sesi"?{type:"sesi",ref:t.dataset.ref,cid:ui.hPrCid||""}:{type:"rekap",from:document.getElementById("hpFrom").value,to:document.getElementById("hpTo").value,cid:ui.hPrCid||""}; render(); window.scrollTo(0,0); return; }
   if(t.id==="hPrClose"){ ui.hPrint=null; render(); return; }
   if(t.id==="hPrGo"){ window.print(); return; }
+  if(t.id==="hLibOpen"){ hLibShow(H_STD(),"Marking scheme standar EI (total 100)"); return; }
+  if(t.id==="hLibClose"){ document.getElementById("hLibBox").innerHTML=""; return; }
+  if(t.id==="hLibAdd"){ hLibAdd(); return; }
+  if(t.dataset.hmsv){ const S=hCur(); if(!S) return; const [key,aid,val]=t.dataset.hmsv.split("|"); const [it,rp,cid]=key.split("~"); const cur=hRes(S.ref,it,rp,cid); const ms={...(cur.ms||{})}; if(ms[aid]!==undefined&&+ms[aid]===+val) delete ms[aid]; else ms[aid]=+val; await hSaveRes(S.ref,key,{ms}); return; }
+  if(t.dataset.hmsall){ const S=hCur(); if(!S) return; const [key,mode]=t.dataset.hmsall.split("|"); const [it,rp,cid]=key.split("~"); const cur=hRes(S.ref,it,rp,cid); let ms={...(cur.ms||{})};
+    if(mode==="clr"){ if(!confirm("Kosongkan semua isian marking scheme siswa ini?")) return; ms={}; } else (S.ms||[]).filter(a=>a.t==="M"&&ms[a.id]===undefined).forEach(a=>ms[a.id]=1); await hSaveRes(S.ref,key,{ms}); return; }
   if(t.dataset.hview){ ui.hView=t.dataset.hview; render(); return; }
   if(t.dataset.hfdel){ const [tg,fid]=t.dataset.hfdel.split("|"); await hDelFile(tg,fid); return; }
   if(t.id==="hXls"){ exportHarian(); return; }
@@ -298,6 +372,7 @@ document.addEventListener("change", async e=>{
   if(t.id==="hDay"){ if(t.value){ ui.hDay=t.value; ui.hSes=null; render(); } return; }
   if(t.id==="hxFrom"||t.id==="hxTo"||t.id==="hpFrom"||t.id==="hpTo"){ ui[t.id]=t.value; return; }
   if(t.id==="hPrCid"){ ui.hPrCid=t.value; return; }
+  if(t.dataset.keepfile==="hms"){ e.stopImmediatePropagation(); const f=t.files[0]; t.value=""; ui.picking=0; if(f) await hImportCIS(f); return; }
   if(t.dataset.keepfile&&/^h[sr]:/.test(t.dataset.keepfile)){ const fs=[...t.files]; t.value=""; await hUpload(t.dataset.keepfile,fs); return; }
   if(t.dataset.keepfile==="hxl"){ const f=t.files[0]; t.value=""; if(f) await importPlan(f); return; }
   if(t.dataset.hres){ const S=hCur(); if(!S) return; const f=t.dataset.f; let v=t.value.trim();
@@ -312,9 +387,9 @@ document.addEventListener("submit", async e=>{
   const old=ui.hForm!=="new"?hSessions().find(s=>s.ref===ui.hForm):null;
   const names=g("hfItems").split("\n").map(x=>x.trim()).filter(Boolean);
   if(!g("hfTitle")||!names.length){ toast("Isi judul dan minimal satu soal."); return; }
-  const items=hMergeItems(old?.items,names); const extra=hMergeX(old?.extra,hParseX(g("hfX")));
+  const items=hMergeItems(old?.items,names); const extra=hMergeX(old?.extra,hParseX(g("hfX"))); const ms=hParseMS(document.getElementById("hfMS").value,old?.ms);
   const m=[...document.querySelectorAll("[data-hm]")].filter(x=>x.checked).map(x=>x.dataset.hm);
-  const data={ ...(old||{}), date:g("hfDate")||todayId(), title:g("hfTitle"), jenis:g("hfJenis"), items, reps:Math.min(6,Math.max(1,+g("hfReps")||1)), m, tBaca:g("hfTB"), tKerja:g("hfTK"), tDev:g("hfTD"), extra, note:g("hfNote") };
+  const data={ ...(old||{}), date:g("hfDate")||todayId(), title:g("hfTitle"), jenis:g("hfJenis"), items, reps:Math.min(6,Math.max(1,+g("hfReps")||1)), m, tBaca:g("hfTB"), tKerja:g("hfTK"), tDev:g("hfTD"), extra, ms, msName:g("hfMSName"), note:g("hfNote") };
   delete data.id; delete data.ref;
   if(!old){ data.by=A.profile?.name||A.user?.email||""; data.at=Date.now(); }
   const ref=old?old.ref:"h"+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
@@ -331,20 +406,20 @@ async function exportHarian(){
   const ses=hSessions().filter(s=>s.date>=from&&s.date<=to);
   if(!ses.length){ toast("Tidak ada sesi pada rentang ini."); return; }
   const n=v=>{ const x=hNum(v); return x===null?"":x; };
-  const H=[["Tanggal","Hari","Jenis penilaian","Sesi","Soal","Percobaan","Peserta","Waktu baca (m:ss)","Baca (detik)","Waktu kerja (m:ss)","Kerja (detik)","Kesalahan","Deviasi maks (mm)","Skor","Target baca (mnt)","Target kerja (mnt)","Kriteria tambahan","Catatan","Dicatat oleh"]];
+  const H=[["Tanggal","Hari","Jenis penilaian","Sesi","Soal","Percobaan","Peserta","Waktu baca (m:ss)","Baca (detik)","Waktu kerja (m:ss)","Kerja (detik)","Kesalahan","Deviasi maks (mm)","Skor","Target baca (mnt)","Target kerja (mnt)","Kriteria tambahan","Marking scheme","Nilai MS","MS maks","MS (%)","Rincian MS","Catatan","Dicatat oleh"]];
   const Rk=[["Tanggal","Jenis penilaian","Sesi","Percobaan","Peserta","Rata-rata baca (m:ss)","Rata-rata kerja (m:ss)","Total kesalahan","Rata-rata deviasi (mm)","Rata-rata skor","Soal terisi"]];
   ses.forEach(S=>{ (S.items||[]).forEach(i=>{ for(let x=1;x<=(+S.reps||1);x++) A.comps.forEach(c=>{ const r=hRes(S.ref,i.id,x,c.id); if(!Object.keys(r).length) return;
-      H.push([S.date,HARI[dparts(S.date).getDay()],hJenis(S),S.title,i.name,x,c.name,mmss(r.baca),n(r.baca),mmss(r.kerja),n(r.kerja),n(r.salah),n(r.dev),n(r.skor),n(S.tBaca),n(S.tKerja),(S.extra||[]).filter(x=>r["x_"+x.id]!==undefined&&r["x_"+x.id]!=="").map(x=>x.name+": "+r["x_"+x.id]+(x.max?"/"+x.max:"")).join("; "),r.note||"",r.by||""]); }); });
+      H.push([S.date,HARI[dparts(S.date).getDay()],hJenis(S),S.title,i.name,x,c.name,mmss(r.baca),n(r.baca),mmss(r.kerja),n(r.kerja),n(r.salah),n(r.dev),n(r.skor),n(S.tBaca),n(S.tKerja),(S.extra||[]).filter(x=>r["x_"+x.id]!==undefined&&r["x_"+x.id]!=="").map(x=>x.name+": "+r["x_"+x.id]+(x.max?"/"+x.max:"")).join("; "),S.msName||"",(q=>q&&q.filled?q.sum:"")(hMS(S,r)),(q=>q?q.max:"")(hMS(S,r)),(q=>q&&q.pct!==null?Math.round(q.pct):"")(hMS(S,r)),(S.ms||[]).map((a,ai)=>{ const v=(r.ms||{})[a.id]; return v===undefined?null:a.t+(ai+1)+"="+(a.t==="M"?(+v?"Y":"N"):v); }).filter(Boolean).join(" "),r.note||"",r.by||""]); }); });
     for(let x=1;x<=(+S.reps||1);x++) A.comps.forEach(c=>{ const rs=(S.items||[]).map(i=>hRes(S.ref,i.id,x,c.id)).filter(r=>Object.keys(r).length); if(!rs.length) return;
       const ab=hAvg(rs.map(r=>hNum(r.baca))), ak=hAvg(rs.map(r=>hNum(r.kerja))), ad=hAvg(rs.map(r=>hNum(r.dev))), as=hAvg(rs.map(r=>hNum(r.skor)));
       Rk.push([S.date,hJenis(S),S.title,x,c.name,ab===null?"":mmss(ab),ak===null?"":mmss(ak),rs.reduce((a,r)=>a+(hNum(r.salah)||0),0),ad===null?"":Math.round(ad*10)/10,as===null?"":Math.round(as),rs.length]); }); });
   const wb=XLSX.utils.book_new();
-  const w1=XLSX.utils.aoa_to_sheet(H); w1["!cols"]=[{wch:11},{wch:8},{wch:22},{wch:26},{wch:16},{wch:9},{wch:16},{wch:10},{wch:9},{wch:10},{wch:9},{wch:9},{wch:10},{wch:7},{wch:9},{wch:9},{wch:30},{wch:40},{wch:16}]; XLSX.utils.book_append_sheet(wb,w1,"Hasil");
+  const w1=XLSX.utils.aoa_to_sheet(H); w1["!cols"]=[{wch:11},{wch:8},{wch:22},{wch:26},{wch:16},{wch:9},{wch:16},{wch:10},{wch:9},{wch:10},{wch:9},{wch:9},{wch:10},{wch:7},{wch:9},{wch:9},{wch:30},{wch:20},{wch:9},{wch:8},{wch:7},{wch:40},{wch:40},{wch:16}]; XLSX.utils.book_append_sheet(wb,w1,"Hasil");
   const w2=XLSX.utils.aoa_to_sheet(Rk); w2["!cols"]=[{wch:11},{wch:22},{wch:26},{wch:9},{wch:16},{wch:12},{wch:12},{wch:10},{wch:12},{wch:10},{wch:9}]; XLSX.utils.book_append_sheet(wb,w2,"Rekap");
-  const J=[["Jenis penilaian","Peserta","Jumlah sesi","Rata-rata baca (m:ss)","Rata-rata kerja (m:ss)","Kesalahan per soal","Deviasi rata-rata (mm)","Kriteria tambahan (%)","Kerja sesi pertama (m:ss)","Kerja sesi terakhir (m:ss)","Perubahan kerja (%)"]];
+  const J=[["Jenis penilaian","Peserta","Jumlah sesi","Rata-rata baca (m:ss)","Rata-rata kerja (m:ss)","Kesalahan per soal","Deviasi rata-rata (mm)","Kriteria tambahan (%)","Marking scheme (%)","Kerja sesi pertama (m:ss)","Kerja sesi terakhir (m:ss)","Perubahan kerja (%)"]];
   const gs={}; ses.forEach(S=>(gs[hJenis(S)]=gs[hJenis(S)]||[]).push(S));
   Object.keys(gs).forEach(j=>A.comps.forEach(c=>{ const st=gs[j].map(S=>hStats(S,c.id)).filter(x=>x.n); if(!st.length) return; const av=k=>hAvg(st.map(x=>x[k])); const r1=v=>v===null?"":Math.round(v*10)/10; const a=st[0].kerja, b=st[st.length-1].kerja;
-    J.push([j,c.name,st.length,av("baca")===null?"":mmss(av("baca")),av("kerja")===null?"":mmss(av("kerja")),r1(av("salah")),r1(av("dev")),av("pct")===null?"":Math.round(av("pct")),a===null?"":mmss(a),b===null?"":mmss(b),a&&b&&st.length>1?Math.round((b-a)/a*100):""]); }));
+    J.push([j,c.name,st.length,av("baca")===null?"":mmss(av("baca")),av("kerja")===null?"":mmss(av("kerja")),r1(av("salah")),r1(av("dev")),av("pct")===null?"":Math.round(av("pct")),av("ms")===null?"":Math.round(av("ms")),a===null?"":mmss(a),b===null?"":mmss(b),a&&b&&st.length>1?Math.round((b-a)/a*100):""]); }));
   const w3=XLSX.utils.aoa_to_sheet(J); w3["!cols"]=[{wch:28},{wch:16},{wch:8},{wch:12},{wch:12},{wch:10},{wch:10},{wch:10},{wch:12},{wch:12},{wch:10}]; XLSX.utils.book_append_sheet(wb,w3,"Per jenis");
   XLSX.writeFile(wb,`Penilaian_Harian_${from}_sd_${to}.xlsx`);
 }
@@ -403,3 +478,5 @@ async function importPlan(file){
   try{ await Store.upsertRecords(recs); recs.forEach(r=>A.rec[r.id]=r); toast(`Rencana diimpor: ${nNew} baru, ${plan.length-nNew} diperbarui.`); render(); }
   catch(e){ toast("Gagal impor: "+errMsg(e)); }
 }
+
+document.addEventListener("input", e=>{ if(e.target.id==="hfMS") hMSTot(); });

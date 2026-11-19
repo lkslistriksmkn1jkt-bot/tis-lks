@@ -107,14 +107,14 @@ V.penilaian = () => {
   const c=calc(ev.id,cid), asp=scopeAsp(ev), filled=c?c.filled:0; const key=id=>ev.id+"/"+cid+"/"+id; const scope=(ev.scope||[]).map(String);
   const canPhoto=canWrite()&&(!locked||isAdmin());
   const crits=scheme().filter(cr=>scope.includes(String(cr.id))).map(cr=>{
-    const subs=cr.subs.map(s=>{ const v=rec.marks?.[s.id], pts=subPts(s,v), st=saveState[key(s.id)];
+    let lastSc=null; const subs=cr.subs.map(s=>{ const v=rec.marks?.[s.id], pts=subPts(s,v), st=saveState[key(s.id)]; const sch=s.sc&&s.sc!==lastSc?`<div class="sc-h">${esc(s.sc)} · ${esc(s.scName||"")} <span class="muted">${fmt(cr.subs.filter(x=>x.sc===s.sc).reduce((a,x)=>a+(+x.max||0),0))}</span></div>`:""; lastSc=s.sc;
       const sv = st==="saving"?'<span class="sv">…</span>':st==="err"?'<span class="sv bad">✗</span>':pts!==null?'<span class="sv good">✓</span>':"";
       let ctrl, hint;
       if(s.t==="M"){ hint="Y / N"; ctrl=`<input class="yn ${v===1?"y":v===0?"n":""}" type="text" maxlength="1" autocomplete="off" autocapitalize="characters" id="as-${s.id}" data-asp="${s.id}" data-kind="M" value="${v===1?"Y":v===0?"N":""}" aria-label="${esc(s.id)} Y atau N" ${dis}>`; }
       else if(s.t==="C"){ hint=`0–${s.n}`; ctrl=`<input class="nb" type="number" inputmode="numeric" min="0" max="${s.n}" id="as-${s.id}" data-asp="${s.id}" data-kind="C" value="${v??""}" aria-label="${esc(s.id)}" ${dis}>`; }
       else { hint="0–3 · selisih maks 1"; const a=Array.isArray(v)?v:[], bad=jBad[key(s.id)];
         ctrl=`<div class="jx">${[0,1,2].map(k=>`<input class="jb ${bad?"bad":""}" type="number" inputmode="numeric" min="0" max="3" id="as-${s.id}-${k}" data-asp="${s.id}" data-kind="J" data-k="${k}" value="${bad?(bad[k]??""):(a[k]??"")}" placeholder="J${k+1}" aria-label="${esc(s.id)} juri ${k+1}" ${dis}>`).join("")}<button type="button" class="q" data-desc="${s.id}" aria-label="Arti nilai">?</button></div>`; }
-      return `<div class="asp">${typBadge(s)}<div class="asp-d"><span>${esc(s.d)}</span><span class="note">${esc(s.id)} · ${hint}</span>${ui.openDesc===s.id?`<div class="desc">${(A.cfg.jlabel||[]).map(l=>`<div>${esc(l)}</div>`).join("")}</div>`:""}</div><div class="asp-c">${ctrl}</div><div class="asp-p num">${sv} ${pts!==null?fmt(pts):"—"}<span class="muted"> / ${fmt(s.max)}</span></div></div>`; }).join("");
+      return `${sch}<div class="asp">${typBadge(s)}<div class="asp-d"><span>${esc(s.d)}</span><span class="note">${esc(s.id)} · ${hint}</span>${ui.openDesc===s.id?`<div class="desc">${s.jd?[0,1,2,3].filter(k=>s.jd[k]).map(k=>`<div><b>${k}</b> ${esc(s.jd[k])}</div>`).join(""):(A.cfg.jlabel||[]).map(l=>`<div>${esc(l)}</div>`).join("")}</div>`:""}</div><div class="asp-c">${ctrl}</div><div class="asp-p num">${sv} ${pts!==null?fmt(pts):"—"}<span class="muted"> / ${fmt(s.max)}</span></div></div>`; }).join("");
     return `<div class="crit"><div class="crit-h"><h3>${esc(cr.id)} · ${esc(cr.name)}</h3><span class="num">${c?fmt(c.byCrit[cr.id]):fmt(0)} / ${fmt(critMax(cr.id))}</span></div>${subs}${critExtras(ev,cid,String(cr.id),dis,canPhoto)}</div>`; }).join("");
   const maxScope = scope.reduce((a,i)=>a+critMax(i),0);
   return `<div><h2>Assessment · Marking Form</h2><p class="lead">Pilih peserta lalu TO. Aspek M: ketik Y atau N lalu Enter. Aspek J: isi nilai 1–3 juri. Tersimpan otomatis.</p></div>

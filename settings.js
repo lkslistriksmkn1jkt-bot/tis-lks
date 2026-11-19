@@ -52,6 +52,8 @@ V.pengaturan = () => {
   else if(ui.set==="scheme"){
     const tot=E.scheme.reduce((a,c)=>a+c.subs.reduce((x,s)=>x+(+s.max||0),0),0), tj=E.scheme.reduce((a,c)=>a+c.subs.filter(s=>s.t==="J").reduce((x,s)=>x+(+s.max||0),0),0);
     body=`<p class="lead">Kriteria dan aspek penilaian. Jenis: M = ya/tidak, C = hitungan (isi jumlah poin di kolom n), J = judgement 0–3. ID aspek dipakai sebagai kunci nilai: jangan diubah setelah ada TO yang dinilai.</p>
+    <div class="panel" style="border-color:var(--accent)"><div class="label">Marking scheme standar LKS EI</div><p class="note">${scheme().some(c=>c.id==="A"&&c.subs.some(s=>s.sc))?"Musim ini <b>sudah memakai</b> standar EI (kriteria A–G).":"Ganti seluruh marking scheme musim ini dengan standar EI: kriteria A–G, 17 sub-kriteria, 133 aspek resmi, total 100. Lingkup TO ikut dipindah otomatis (1→A, 2→B, … 7→G). Foto dan catatan per kriteria ikut dipindahkan. Marking scheme lama disimpan sebagai cadangan."}</p>
+      <div class="row"><button class="btn sm primary" id="stdApply">${scheme().some(c=>c.id==="A"&&c.subs.some(s=>s.sc))?"Pasang ulang standar EI":"Pakai marking scheme standar EI"}</button>${A.cfg.schemeOld?'<button class="btn sm" id="stdUndo">Kembalikan marking scheme lama</button>':""}</div></div>
     <div class="${Math.abs(tot-100)<0.01?"okbox":"warnbox"}">Total ${fmt(tot)} poin (J ${fmt(tj)} · M ${fmt(tot-tj)}). ${Math.abs(tot-100)<0.01?"Sudah 100.":"Sebaiknya totalnya 100."}</div>
     ${E.scheme.map((c,ci)=>`<div class="crit"><div class="crit-h" style="flex-wrap:wrap"><div class="row" style="flex:1;min-width:0"><span class="note">ID</span>${inp(`scheme.${ci}.id`,"text",'style="width:50px"')}<span class="note">Nama</span>${inp(`scheme.${ci}.name`,"text",'style="flex:1;min-width:140px"')}</div><span class="num">${fmt(c.subs.reduce((x,s)=>x+(+s.max||0),0))}</span><button class="btn sm danger" data-rm="scheme.${ci}">Hapus kriteria</button></div>
       <div class="tbl-wrap" style="border:none;border-radius:0"><table class="ed-tbl" style="min-width:720px"><thead><tr><th>ID</th><th>Aspek</th><th>Jenis</th><th>Maks</th><th>n (C)</th><th></th></tr></thead><tbody>${c.subs.map((s,si)=>`<tr><td data-l="ID aspek">${inp(`scheme.${ci}.subs.${si}.id`,"text",'style="width:60px"')}</td><td data-l="Aspek">${inp(`scheme.${ci}.subs.${si}.d`,"text",'style="min-width:280px;width:100%"')}</td>
@@ -250,3 +252,25 @@ async function applyExcel(){
   if(pick.includes("gate")) cfg.gates=X.gate.rows;
   const ok=await saveSeasonCfg(cfg,"Isi Excel diterapkan dan disimpan."); if(ok){ ui.xl=null; ui.editKey=null; render(); }
 }
+
+/* ---------- Pasang marking scheme standar EI ---------- */
+async function applyStdScheme(undo){
+  if(!isAdmin()){ toast("Hanya admin."); return; }
+  const marks=Object.values(A.rec).filter(r=>r.kind==="mark"&&Object.keys(r.data?.marks||{}).length);
+  const cfg=JSON.parse(JSON.stringify(A.cfg));
+  let map;
+  if(undo){ if(!cfg.schemeOld) return; if(!confirm("Kembalikan marking scheme lama? Lingkup TO dikembalikan ke nomor 1–7.")) return;
+    const inv={}; Object.entries(window.TIS_STD_MAP).forEach(([k,v])=>inv[v]=+k); map=inv; cfg.scheme=cfg.schemeOld; delete cfg.schemeOld; }
+  else { if(!confirm(`Ganti marking scheme musim ini dengan standar EI (A–G, total 100)?${marks.length?`\n\nPerhatian: ada ${marks.length} lembar nilai TO dari marking scheme lama. Nilainya tidak bisa dipindah otomatis karena aspeknya berbeda, jadi akan tampil kosong. Marking scheme lama tetap disimpan dan bisa dikembalikan.`:""}`)) return;
+    map=window.TIS_STD_MAP; if(!cfg.schemeOld&&!(cfg.scheme||[]).some(c=>c.id==="A"&&c.subs.some(s=>s.sc))) cfg.schemeOld=cfg.scheme; cfg.scheme=window.TIS_STD_SCHEME(); }
+  const mp=x=>map[String(x)]!==undefined?map[String(x)]:x;
+  cfg.events=(cfg.events||[]).map(e=>({ ...e, scope:[...new Set((e.scope||[]).map(mp))] }));
+  if(!(await saveSeasonCfg(cfg, undo?"Marking scheme lama dikembalikan.":"Marking scheme standar EI terpasang."))) return;
+  const ups=[];
+  Object.values(A.rec).forEach(r=>{
+    if(r.kind==="photo"&&r.data&&map[String(r.data.crit)]!==undefined) ups.push({ ...r, data:{ ...r.data, crit:String(map[String(r.data.crit)]) } });
+    if(r.kind==="mark"&&r.data?.cnotes){ const cn={}; let ch=false; Object.entries(r.data.cnotes).forEach(([k,v])=>{ const n=map[String(k)]; if(n!==undefined){ cn[n]=v; ch=true; } else cn[k]=v; }); if(ch) ups.push({ ...r, data:{ ...r.data, cnotes:cn } }); } });
+  if(ups.length){ try{ await Store.upsertRecords(ups); ups.forEach(r=>A.rec[r.id]=r); }catch(e){ toast("Foto/catatan gagal dipindah: "+errMsg(e)); } }
+  ui.edit=null; render();
+}
+document.addEventListener("click", e=>{ const t=e.target.closest("button"); if(!t) return; if(t.id==="stdApply") applyStdScheme(false); if(t.id==="stdUndo") applyStdScheme(true); });
