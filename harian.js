@@ -14,10 +14,13 @@ const H_TPL = [
 const hSessions = () => Object.values(A.rec).filter(r=>r.kind==="harian"&&!String(r.ref).includes("~")).map(r=>({ id:r.id, ref:r.ref, ...r.data })).sort((a,b)=>(a.date||"").localeCompare(b.date||"")||(a.at||0)-(b.at||0));
 const hRes = (sref,item,rep,cid) => R("harian", sref+"~"+item+"~"+rep, cid) || {};
 const mmss = s => { if(s===undefined||s===null||s===""||isNaN(s)) return ""; s=Math.max(0,Math.round(+s)); const h=Math.floor(s/3600), m=Math.floor(s%3600/60), d=String(s%60).padStart(2,"0"); return h?h+":"+String(m).padStart(2,"0")+":"+d:m+":"+d; };
-const parseT = v => { v=String(v||"").trim().replace(/[.,](?=\d+$)/,".").replace(/\s+/g,""); if(!v) return null;
-  let m=v.match(/^(?:(\d+)j)?(?:(\d+)m(?:nt)?)?(?:(\d+)d(?:t)?)?$/i); if(m&&(m[1]||m[2]||m[3])) return (+m[1]||0)*3600+(+m[2]||0)*60+(+m[3]||0);
-  if(v.includes(":")){ const p=v.split(":").map(x=>+x||0); if(p.length===3) return Math.round(p[0]*3600+p[1]*60+p[2]); if(p.length===2) return Math.round(p[0]*60+p[1]); return null; }
-  if(/^\d+(\.\d+)?$/.test(v)) return Math.round(+v*60); return null; };
+const parseT = v => { v=String(v||"").trim().toLowerCase(); if(!v) return null;
+  let m=v.replace(/\s+/g,"").match(/^(?:(\d+)j)?(?:(\d+)m(?:nt)?)?(?:(\d+)d(?:t)?)?$/); if(m&&(m[1]||m[2]||m[3])) return (+m[1]||0)*3600+(+m[2]||0)*60+(+m[3]||0);
+  const p=v.split(/\s*[:.,;\-\s]\s*/).filter(x=>x!==""); if(!p.length||p.some(x=>!/^\d+$/.test(x))) return null;
+  if(p.length===1) return +p[0]*60;
+  if(p.length===2){ if(+p[1]>59) return null; return +p[0]*60+ +p[1]; }
+  if(p.length===3){ if(+p[1]>59||+p[2]>59) return null; return +p[0]*3600+ +p[1]*60+ +p[2]; }
+  return null; };
 const hParseX = txt => String(txt||"").split(/\n|;/).map(x=>x.trim()).filter(Boolean).map((l,i)=>{ const m=l.match(/^(.*?)\s*\/\s*(\d+(?:[.,]\d+)?)\s*$/); return { name:(m?m[1]:l).trim(), max:m?hNum(m[2]):null }; });
 const hXText = x => (x||[]).map(e=>e.name+(e.max?" /"+e.max:"")).join("\n");
 function hMergeX(old,parsed){ const used=new Set(); return parsed.map((e,i)=>{ const ex=(old||[]).find(o=>o.name===e.name&&!used.has(o.id)); const id=ex?ex.id:"x"+Date.now().toString(36)+i; used.add(id); return { id, name:e.name, max:e.max }; }); }
@@ -111,7 +114,7 @@ function hSessionView(S){
   const prev=rep>1;
   const cards=A.comps.map(c=>{ const r=hRes(S.ref,item,rep,c.id); const p=prev?hRes(S.ref,item,rep-1,c.id):{}; const key=`${item}~${rep}~${c.id}`; const ro=canWrite()?"":"disabled";
     const cmp=(v,pv,t)=>{ const out=[]; if(v!==null&&v!==undefined&&t) out.push(v<=t?'<span class="chip good">✓ target</span>':'<span class="chip bad">lewat target</span>'); if(prev&&pv!==null&&pv!==undefined&&v!==null&&v!==undefined&&pv>0){ const d=Math.round((v-pv)/pv*100); out.push(`<span class="chip ${d<=0?"good":"warn"}">${d>0?"+":""}${d}% vs P${rep-1}</span>`);} return out.join(""); };
-    const fld=(f,label,extra)=>`<label class="f h-fld"><span class="h-lb">${label}</span><input ${ro} type="${f==="baca"||f==="kerja"?"text":"number"}" ${f==="baca"||f==="kerja"?'inputmode="decimal" placeholder="m:ss / j:mm:ss"':'inputmode="decimal" min="0" step="'+(f==="dev"?"0.5":"1")+'"'} id="hx-${f}-${c.id}" data-hres="${key}" data-f="${f}" value="${esc(f==="baca"||f==="kerja"?mmss(r[f]):(r[f]??""))}">${extra||""}</label>`;
+    const fld=(f,label,extra)=>`<label class="f h-fld"><span class="h-lb">${label}</span><input ${ro} type="${f==="baca"||f==="kerja"?"text":"number"}" ${f==="baca"||f==="kerja"?'inputmode="decimal" placeholder="40.34 atau 1.15.30"':'inputmode="decimal" min="0" step="'+(f==="dev"?"0.5":"1")+'"'} id="hx-${f}-${c.id}" data-hres="${key}" data-f="${f}" value="${esc(f==="baca"||f==="kerja"?mmss(r[f]):(r[f]??""))}">${extra||""}</label>`;
     return `<div class="entry" style="border-left-color:${compColor(c)}"><div class="spread"><b>${badge(c,true)} ${esc(c.name)}</b><span class="row">${hPhaseBtns(S,item,rep,c,r)}</span></div>
       <div class="grid g3 h-g">${m.includes("baca")?fld("baca","Waktu baca"+(tB?` <small class="muted">target ${mmss(tB*60)}</small>`:""),`<span class="row">${cmp(r.baca,p.baca,tB?tB*60:null)}</span>`):""}${m.includes("kerja")?fld("kerja","Waktu kerja"+(tK?` <small class="muted">target ${mmss(tK*60)}</small>`:""),`<span class="row">${cmp(r.kerja,p.kerja,tK?tK*60:null)}</span>`):""}
       ${m.includes("salah")?fld("salah","Kesalahan",`<span class="row">${cmp(hNum(r.salah),hNum(p.salah),null)}</span>`):""}${m.includes("dev")?fld("dev","Deviasi maks (mm)"+(tD!==null?` <small class="muted">target ≤ ${fmt(tD,1)}</small>`:""),`<span class="row">${hNum(r.dev)!==null&&tD!==null?(hNum(r.dev)<=tD?'<span class="chip good">✓ toleransi</span>':'<span class="chip bad">di luar toleransi</span>'):""}</span>`):""}${m.includes("skor")?fld("skor","Skor (0–100)"):""}${(S.extra||[]).map(x=>fld("x_"+x.id,esc(x.name)+(x.max?" (maks "+x.max+")":""))).join("")}</div>
@@ -120,7 +123,7 @@ function hSessionView(S){
       ${hFiles(S,null,"Foto hasil kerja",key,r)}
       ${r.by?`<div class="note">dicatat ${esc(r.by)}</div>`:""}</div>`; }).join("");
   return head+sel+`<div class="panel"><div class="spread"><div class="label">${esc(iname)} · Percobaan ${rep}</div>${startAll}</div>${hFiles(S,item,"Gambar / file soal: "+iname)}${cards}
-    <p class="note no-print">Waktu bisa dari stopwatch atau diketik manual: <b>3:25</b> (3 menit 25 detik), <b>1:15:30</b> (1 jam 15 menit 30 detik), atau <b>95</b> (menit). Lebih dari 1 jam otomatis tampil jam:menit:detik. Data tersimpan otomatis.</p></div>`+hSummary(S);
+    <p class="note no-print">Waktu bisa dari stopwatch atau diketik manual. Pemisah boleh titik, koma, atau titik dua: <b>40.34</b> = 40 menit 34 detik, <b>40,5</b> = 40 menit 5 detik, <b>1.15.30</b> = 1 jam 15 menit 30 detik, <b>95</b> = 95 menit. Lebih dari 1 jam otomatis tampil jam:menit:detik. Data tersimpan otomatis.</p></div>`+hSummary(S);
 }
 
 function hMSBlock(S,key,r){
@@ -383,7 +386,7 @@ document.addEventListener("change", async e=>{
   if(t.dataset.keepfile&&/^h[sr]:/.test(t.dataset.keepfile)){ const fs=[...t.files]; t.value=""; await hUpload(t.dataset.keepfile,fs); return; }
   if(t.dataset.keepfile==="hxl"){ const f=t.files[0]; t.value=""; if(f) await importPlan(f); return; }
   if(t.dataset.hres){ const S=hCur(); if(!S) return; const f=t.dataset.f; let v=t.value.trim();
-    if(f==="baca"||f==="kerja"){ if(v===""){ v=null; } else { v=parseT(v); if(v===null){ toast("Format waktu: 3:25 (menit:detik), 1:15:30 (jam:menit:detik), atau 95 (menit)."); return; } } }
+    if(f==="baca"||f==="kerja"){ if(v===""){ v=null; } else { v=parseT(v); if(v===null){ toast("Format waktu: 40.34 (menit.detik), 1.15.30 (jam.menit.detik), atau 95 (menit). Detik maksimal 59."); return; } } }
     else if(f!=="note"){ v=v===""?"":String(Math.max(0,hNum(v)??0)); }
     const patch={[f]:v}; if((f==="baca"||f==="kerja")&&v!==null){ const cur=hRes(S.ref,...t.dataset.hres.split("~")); if(cur.phase==="baca"||cur.phase==="kerja"){} else patch.phase=cur.phase||"idle"; }
     await hSaveRes(S.ref,t.dataset.hres,patch); return; }

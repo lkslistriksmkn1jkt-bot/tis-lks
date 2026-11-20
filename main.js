@@ -304,7 +304,7 @@ document.addEventListener("submit", async e=>{
   if(f.id==="jForm"){ const g=id=>document.getElementById(id).value.trim();
     const ed=ui.jEdit?A.rec[ui.jEdit]:null;
     const tm=id=>{ const v=g(id); if(!v) return ""; const s=parseT(v); return s===null?null:String(Math.round(s/60*10000)/10000); };
-    const tw=tm("jWaktu"), tpl=tm("jPlan"); if(tw===null||tpl===null){ toast("Format waktu: 1:25:30 (jam:menit:detik), 45:10 (menit:detik), atau 90 (menit)."); return; }
+    const tw=tm("jWaktu"), tpl=tm("jPlan"); if(tw===null||tpl===null){ toast("Format waktu: 45.10 (menit.detik), 1.25.30 (jam.menit.detik), atau 90 (menit). Detik maksimal 59."); return; }
     const data={ date:g("jDate")||todayId(), drill:g("jDrill"), waktu:tw, plan:tpl, dev:g("jDev"), cacat:g("jCacat"), bahan:g("jBahan"), kondisi:g("jKondisi"), tidur:g("jTidur"), bisa:g("jBisa"), belum:g("jBelum") };
     if(!data.drill&&!data.bisa&&!data.belum&&!data.waktu){ toast("Isi minimal drill, waktu, atau catatan."); return; }
     const cid=g("jCid"); const me=A.profile?.name||A.user?.email||"";
