@@ -15,7 +15,9 @@ function render(){
   const a=document.activeElement; const keep=a&&a.id&&(a.tagName==="INPUT"||a.tagName==="TEXTAREA"||a.tagName==="SELECT")?{id:a.id,s:a.selectionStart,e:a.selectionEnd}:null;
   const keepE=a&&a.dataset&&a.dataset.e?a.dataset.e:null; const sx=window.scrollX, sy=window.scrollY;
   const oldFiles=[...root.querySelectorAll("input[data-keepfile]")];
+  captureDrafts();
   root.innerHTML=shell(V[r](), r);
+  restoreDrafts();
   oldFiles.forEach(o=>{ const n=root.querySelector(`input[data-keepfile="${o.dataset.keepfile}"]`); if(n) n.replaceWith(o); });
   if(keep){ const el=document.getElementById(keep.id); if(el){ el.focus({preventScroll:true}); try{ el.setSelectionRange(keep.s,keep.e); }catch(e){} } }
   else if(keepE){ const el=document.querySelector(`[data-e="${keepE}"]`); if(el) el.focus({preventScroll:true}); }
@@ -257,7 +259,9 @@ document.addEventListener("change", async e=>{
   if(t.id==="logDate"){ if(t.value) setLogDate(t.value); return; }
   if(t.dataset.uname){ const id=t.dataset.uname, n=t.value.trim(); try{ await Store.setName(id, n); const p=A.profiles.find(x=>x.id===id); if(p) p.name=n; if(id===A.user.id) A.profile.name=n; toast("Nama disimpan."); render(); }catch(err){ toast(errMsg(err)); } return; }
   if(t.dataset.asp){ if(t.dataset.done){ delete t.dataset.done; return; } if(t.dataset.kind==="J"){ const id=t.dataset.asp; setTimeout(()=>{ const a=document.activeElement; if(a&&a.dataset&&a.dataset.asp===id&&a.dataset.kind==="J") return; commitAsp(t); },0); } else commitAsp(t); return; }
-  if(t.dataset.extra){ const f=t.dataset.extra; const v=f==="k3"?t.checked:(t.value===""?null:Math.max(0,Math.round(+t.value))); await saveMark(ui.ev,ui.cid,f,d=>{ d[f]=v; }); return; }
+  if(t.dataset.extra){ const f=t.dataset.extra; let v;
+    if(f==="minutes"||f==="plan"){ if(t.value.trim()===""){ v=null; } else { const sec=parseT(t.value); if(sec===null){ toast("Format waktu: 2.45.30 (jam.menit.detik), 45.10 (menit.detik), atau 165 (menit). Detik maksimal 59."); return; } v=Math.round(sec/60*10000)/10000; } }
+    else v=f==="k3"?t.checked:(t.value===""?null:Math.max(0,Math.round(+t.value))); await saveMark(ui.ev,ui.cid,f,d=>{ d[f]=v; }); return; }
   if(t.dataset.done){ const d=clone(R("done",t.dataset.done,t.dataset.cid)||{}); d.done=t.checked; d.at=Date.now(); await saveRec("done", t.dataset.done, t.dataset.cid, d); return; }
   if(t.dataset.gate){ const cid=ui.gcid, g=t.dataset.gate, i=+t.dataset.gi; const all=clone(R("gate","all",cid)||{}); const r=all[g]||{items:[]}; r.items=r.items||[]; r.items[i]=t.checked;
     const gd=gates().find(x=>x.id===g); const done=gd.items.every((_,k)=>r.items[k]); r.date=done?(r.date||todayId()):null; all[g]=r; await saveRec("gate","all",cid,all); if(done) toast(`Gate ${g} lulus.`); return; }
@@ -318,3 +322,22 @@ document.addEventListener("submit", async e=>{
 
 window.addEventListener("beforeunload", e=>{ if(ui.dirty){ e.preventDefault(); e.returnValue=""; } });
 boot();
+
+/* ---------- Draf isian: tidak hilang saat data dari pengguna lain masuk ---------- */
+const DRAFT={}; let draftCtx="";
+const draftKey=()=>{ const r=(location.hash||"#beranda").slice(1); const t=todayId();
+  if(r==="log") return "log|"+(ui.logDate||t);
+  if(r==="jurnal") return "jurnal|"+(ui.jDay||t)+"|"+(ui.jEdit||"");
+  if(r==="harian") return "harian|"+(ui.hDay||t)+"|"+(ui.hSes||"")+"|"+(ui.hItem||"")+"|"+(ui.hRep||1)+"|"+(ui.hForm||"");
+  if(r==="penilaian") return "pen|"+(ui.ev||"")+"|"+(ui.cid||"")+"|"+(ui.mday||0);
+  return r; };
+const draftable=el=>el&&el.id&&!el.dataset.e&&!el.dataset.keepfile&&/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)&&!/^(file|password|submit|button)$/.test(el.type)&&el.id!=="lgEmail";
+function captureDrafts(){ const k=draftKey(); if(k!==draftCtx){ draftCtx=k; } }
+function restoreDrafts(){ const d=DRAFT[draftKey()]; if(!d) return;
+  Object.entries(d).forEach(([id,v])=>{ const el=document.getElementById(id); if(!el||!draftable(el)) return;
+    if(el.type==="checkbox"||el.type==="radio"){ if(el.checked!==v) el.checked=v; } else if(el.value!==v) el.value=v; }); }
+document.addEventListener("input", e=>{ const el=e.target; if(!draftable(el)) return; const k=draftKey(); (DRAFT[k]=DRAFT[k]||{})[el.id]=(el.type==="checkbox"||el.type==="radio")?el.checked:el.value; }, true);
+document.addEventListener("change", e=>{ const el=e.target; if(!draftable(el)) return; const k=draftKey();
+  if(!el.closest("form")){ if(DRAFT[k]) delete DRAFT[k][el.id]; return; }
+  (DRAFT[k]=DRAFT[k]||{})[el.id]=(el.type==="checkbox"||el.type==="radio")?el.checked:el.value; }, true);
+document.addEventListener("submit", e=>{ const f=e.target; const k=draftKey(); if(!DRAFT[k]) return; f.querySelectorAll("[id]").forEach(el=>delete DRAFT[k][el.id]); }, true);
